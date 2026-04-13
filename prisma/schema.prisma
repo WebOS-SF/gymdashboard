@@ -1,0 +1,69 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Product {
+  id       Int     @id @default(autoincrement())
+  name     String
+  price    Float
+  stock    Int
+  category String
+}
+
+model Client {
+  dni           Int           @id
+  nameComplete  String
+  joinDate      DateTime
+  fee           Float
+  mode          String
+  paymentMethod String
+  turn          String
+  debt          Float         @default(0)
+  appointments  Appointment[]
+  boletas       Boleta[]
+  sales         SalesRecord[]
+}
+
+model SalesRecord {
+  id        Int      @id @default(autoincrement())
+  saleDate  DateTime
+  product   String
+  amount    Float
+  clientDni Int
+  client    Client   @relation(fields: [clientDni], references: [dni], onDelete: Cascade)
+}
+
+model Boleta {
+  id          Int      @id @default(autoincrement())
+  receiptDate DateTime
+  product     String
+  amount      Float
+  tax         Float
+  total       Float
+  clientDni   Int
+  client      Client   @relation(fields: [clientDni], references: [dni], onDelete: Cascade)
+}
+
+model Factura {
+  id           Int      @id @default(autoincrement())
+  invoiceDate  DateTime
+  supplierName String
+  ruc          String
+  product      String
+  amount       Float
+  tax          Float
+  total        Float
+}
+
+model Appointment {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String
+  scheduled DateTime
+  clientDni Int
+  client    Client   @relation(fields: [clientDni], references: [dni], onDelete: Cascade)
+}
