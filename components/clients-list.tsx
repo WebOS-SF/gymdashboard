@@ -25,14 +25,14 @@ export function ClientsList({ clients, products, onUpdateClient, onAddClient }: 
   const filteredClients = clients.filter((client) => {
   const dni = String(client.dni || "")
   const name = client.name?.toLowerCase() || ""
-  const phone = client.phone || ""
+  const product = client.product?.toLowerCase() || ""
 
   const search = searchDni.toLowerCase()
 
   return (
     dni.includes(search) ||
     name.includes(search) ||
-    phone.includes(search)
+    product.includes(search)
   )
 })
 

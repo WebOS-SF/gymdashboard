@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
 import { MonthlyData } from '@/lib/types'
 import { useTheme } from '@/hooks/use-theme'
+import { useMemo, useState } from 'react'
 
 interface DashboardChartsProps {
   data: MonthlyData[]
@@ -12,6 +13,7 @@ interface DashboardChartsProps {
 
 export function DashboardCharts({ data }: DashboardChartsProps) {
   const { theme, mounted } = useTheme()
+  const [period, setPeriod] = useState<'month' | 'year'>('year')
   
   const primaryColor = "#FF6B6B"
   const accentColor = "#5B8DEF"
@@ -22,6 +24,20 @@ export function DashboardCharts({ data }: DashboardChartsProps) {
   const tooltipBorder = isDark ? "#374151" : "#e5e7eb"
   const tooltipText = isDark ? "#f9fafb" : "#111827"
   const areaFill = isDark ? "rgba(255, 107, 107, 0.1)" : "rgba(255, 107, 107, 0.15)"
+
+  const chartData = useMemo(() => {
+    if (period === 'month') return data.slice(-6)
+    return data
+  }, [data, period])
+
+  const last = chartData[chartData.length - 1]
+  const prev = chartData[chartData.length - 2]
+
+  const productsChange = last && prev ? last.products - prev.products : 0
+  const productsChangePct = last && prev && prev.products > 0 ? Math.round((productsChange / prev.products) * 100) : 0
+
+  const clientsChange = last && prev ? last.clients - prev.clients : 0
+  const clientsChangePct = last && prev && prev.clients > 0 ? Math.round((clientsChange / prev.clients) * 100) : 0
   
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -29,7 +45,7 @@ export function DashboardCharts({ data }: DashboardChartsProps) {
       <Card className="lg:col-span-2 rounded-2xl border-0 shadow-sm bg-card">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-base font-semibold text-foreground">Resumen de Ventas</CardTitle>
-          <Select defaultValue="year">
+          <Select value={period} onValueChange={(v: 'month' | 'year') => setPeriod(v)}>
             <SelectTrigger className="w-28 h-8 text-xs rounded-lg border-0 bg-secondary/50">
               <SelectValue placeholder="Periodo" />
             </SelectTrigger>
@@ -42,7 +58,7 @@ export function DashboardCharts({ data }: DashboardChartsProps) {
         <CardContent>
           <div className="h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data}>
+              <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="colorClients" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={primaryColor} stopOpacity={0.3}/>
@@ -99,14 +115,16 @@ export function DashboardCharts({ data }: DashboardChartsProps) {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-medium text-muted-foreground">Productos Vendidos</CardTitle>
-              <span className="text-xs font-medium text-success bg-success/10 px-2 py-1 rounded-full">+24%</span>
+              <span className={`text-xs font-medium px-2 py-1 rounded-full ${productsChangePct >= 0 ? 'text-success bg-success/10' : 'text-destructive bg-destructive/10'}`}>
+                {productsChangePct >= 0 ? '+' : ''}{productsChangePct}%
+              </span>
             </div>
-            <p className="text-2xl font-bold text-foreground">{data.reduce((a, d) => a + d.products, 0)}</p>
+            <p className="text-2xl font-bold text-foreground">{chartData.reduce((a, d) => a + d.products, 0)}</p>
           </CardHeader>
           <CardContent className="pb-4">
             <div className="h-[80px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.slice(-6)}>
+                <BarChart data={chartData.slice(-6)}>
                   <Bar 
                     dataKey="products" 
                     fill={accentColor}
@@ -123,14 +141,16 @@ export function DashboardCharts({ data }: DashboardChartsProps) {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-medium text-muted-foreground">Nuevos Miembros</CardTitle>
-              <span className="text-xs font-medium text-success bg-success/10 px-2 py-1 rounded-full">+18%</span>
+              <span className={`text-xs font-medium px-2 py-1 rounded-full ${clientsChangePct >= 0 ? 'text-success bg-success/10' : 'text-destructive bg-destructive/10'}`}>
+                {clientsChangePct >= 0 ? '+' : ''}{clientsChangePct}%
+              </span>
             </div>
-            <p className="text-2xl font-bold text-foreground">{data.reduce((a, d) => a + d.clients, 0)}</p>
+            <p className="text-2xl font-bold text-foreground">{chartData.reduce((a, d) => a + d.clients, 0)}</p>
           </CardHeader>
           <CardContent className="pb-4">
             <div className="h-[80px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data.slice(-6)}>
+                <AreaChart data={chartData.slice(-6)}>
                   <defs>
                     <linearGradient id="colorMini" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#9B6DD7" stopOpacity={0.3}/>

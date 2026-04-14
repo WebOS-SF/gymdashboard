@@ -1,14 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { DashboardHeader } from './dashboard-header'
 import { StatsCards } from './stats-cards'
 import { DashboardCharts } from './dashboard-charts'
 import { ClientsList } from './clients-list'
 import { ProductsList } from './products-list'
-import { Client, Product } from '@/lib/types'
-import { mockClients, mockProducts, mockMonthlyData } from '@/lib/mock-data'
+import { Client, Product, MonthlyData } from '@/lib/types'
 import { Users, Package } from 'lucide-react'
 
 interface DashboardProps {
@@ -16,21 +15,41 @@ interface DashboardProps {
 }
 
 export function Dashboard({ onLogout }: DashboardProps) {
- 
- useEffect(() => {
-  fetch('/api/product')
-    .then(res => res.json())
-    .then(data => setProducts(data))
-}, [])
-
-useEffect(() => {
-  fetch('/api/clients')
-    .then(res => res.json())
-    .then(data => setClients(data))
-}, [])
   const [clients, setClients] = useState<Client[]>([])
   const [products, setProducts] = useState<Product[]>([])
+  const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([])
   const [viewMode, setViewMode] = useState<'clients' | 'products'>('clients')
+
+  const fetchProducts = useCallback(async () => {
+    const res = await fetch('/api/product')
+    const data = await res.json()
+    setProducts(data)
+  }, [])
+
+  const fetchClients = useCallback(async () => {
+    const res = await fetch('/api/clients')
+    const data = await res.json()
+    setClients(data)
+  }, [])
+
+  const fetchMonthly = useCallback(async () => {
+    const res = await fetch('/api/analytics/monthly')
+    const data = await res.json()
+    setMonthlyData(data)
+  }, [])
+
+  useEffect(() => {
+    fetchProducts()
+    fetchClients()
+    fetchMonthly()
+  }, [fetchProducts, fetchClients, fetchMonthly])
+
+  const refreshAfterSale = useCallback(async () => {
+    await Promise.all([
+      fetchProducts(),
+      fetchMonthly(),
+    ])
+  }, [fetchProducts, fetchMonthly])
 
   const handleUpdateClient = (updatedClient: Client) => {
     setClients(prev => prev.map(c => c.id === updatedClient.id ? updatedClient : c))
@@ -57,7 +76,7 @@ useEffect(() => {
         <StatsCards clients={clients} products={products} />
 
         {/* Charts Section */}
-        <DashboardCharts data={mockMonthlyData} />
+        <DashboardCharts data={monthlyData} />
 
         {/* Toggle View */}
         <div className="flex items-center gap-1 p-1 bg-card rounded-xl w-fit shadow-sm">
@@ -100,8 +119,10 @@ useEffect(() => {
         ) : (
           <ProductsList
             products={products}
+            clients={clients}
             onUpdateProduct={handleUpdateProduct}
             onAddProduct={handleAddProduct}
+            onSaleRecorded={refreshAfterSale}
           />
         )}
       </main>

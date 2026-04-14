@@ -7,19 +7,26 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Search, Plus, Edit2, Package, X, Check, Filter } from 'lucide-react'
-import { Product } from '@/lib/types'
+import { Product, Client } from '@/lib/types'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface ProductsListProps {
   products: Product[]
+  clients: Client[]
   onUpdateProduct: (product: Product) => void
   onAddProduct: (product: Product) => void
 }
 
-export function ProductsList({ products, onUpdateProduct, onAddProduct }: ProductsListProps) {
+export function ProductsList({ products, clients, onUpdateProduct, onAddProduct }: ProductsListProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Product | null>(null)
   const [isAdding, setIsAdding] = useState(false)
+  const [isSelling, setIsSelling] = useState(false)
+  const [sellingProduct, setSellingProduct] = useState<Product | null>(null)
+  const [saleClientDni, setSaleClientDni] = useState('')
+  const [saleQty, setSaleQty] = useState(1)
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     name: '',
     price: 0,
@@ -48,6 +55,45 @@ export function ProductsList({ products, onUpdateProduct, onAddProduct }: Produc
   const handleCancelEdit = () => {
     setEditingId(null)
     setEditForm(null)
+  }
+
+  const handleOpenSell = (product: Product) => {
+    setSellingProduct(product)
+    setSaleClientDni('')
+    setSaleQty(1)
+    setIsSelling(true)
+  }
+
+  const handleConfirmSell = async () => {
+    if (!sellingProduct) return
+    if (!saleClientDni) return
+
+    try {
+      const res = await fetch('/api/sales', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: sellingProduct.id,
+          clientDni: saleClientDni,
+          quantity: saleQty,
+        }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.error || 'Error creating sale')
+      }
+
+      const payload = await res.json()
+      if (payload?.product) {
+        onUpdateProduct(payload.product)
+      }
+
+      setIsSelling(false)
+      setSellingProduct(null)
+    } catch (error) {
+      console.error('Error registrando venta:', error)
+    }
   }
 
   const handleAddProduct = async () => {
@@ -292,6 +338,14 @@ export function ProductsList({ products, onUpdateProduct, onAddProduct }: Produc
                         >
                           <Edit2 className="h-4 w-4" />
                         </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleOpenSell(product)}
+                          className="h-8 px-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary"
+                        >
+                          Vender
+                        </Button>
                       </TableCell>
                     </>
                   )}
@@ -308,6 +362,54 @@ export function ProductsList({ products, onUpdateProduct, onAddProduct }: Produc
           </Table>
         </div>
       </CardContent>
+
+      <Dialog open={isSelling} onOpenChange={setIsSelling}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Registrar venta</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Producto</p>
+              <p className="text-sm font-medium">{sellingProduct?.name}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Cliente</p>
+                <Select value={saleClientDni} onValueChange={setSaleClientDni}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clients.map((c) => (
+                      <SelectItem key={c.dni} value={String(c.dni)}>
+                        {c.name} ({c.dni})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Cantidad</p>
+                <Input
+                  type="number"
+                  min={1}
+                  value={saleQty}
+                  onChange={(e) => setSaleQty(Number(e.target.value))}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSelling(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirmSell} disabled={!sellingProduct || !saleClientDni || saleQty <= 0}>
+              Confirmar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

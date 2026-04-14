@@ -37,9 +37,10 @@ export function ClientModal({ client, products, isOpen, onClose, onSave }: Clien
     if (client) {
       setFormData(client)
     } else {
-      setFormData({
+      setFormData({   
         id: crypto.randomUUID(),
         name: '',
+        phone: '',
         dni: '',
         status: 'active',
         plan: 'Básico',
@@ -60,12 +61,12 @@ export function ClientModal({ client, products, isOpen, onClose, onSave }: Clien
 
   const handleAddDebt = () => {
     if (!newDebtProductId) return
-    const product = products.find(p => p.id === newDebtProductId)
+    const product = products.find(p => String(p.id) === newDebtProductId)
     if (!product) return
     
     const newDebt = {
       id: crypto.randomUUID(),
-      productId: product.id,
+      productId: String(product.id),
       productName: product.name,
       amount: product.price,
       date: new Date().toISOString().split('T')[0]
@@ -228,7 +229,7 @@ export function ClientModal({ client, products, isOpen, onClose, onSave }: Clien
                   </SelectTrigger>
                   <SelectContent className="bg-popover border-border">
                     {products.map((product) => (
-                      <SelectItem key={product.id} value={product.id} className="text-foreground hover:bg-secondary">
+                      <SelectItem key={product.id} value={String(product.id)} className="text-foreground hover:bg-secondary">
                         {product.name} - ${product.price.toLocaleString()}
                       </SelectItem>
                     ))}

@@ -98,11 +98,9 @@ export function StatsCards({ clients, products }: StatsCardsProps) {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-sm opacity-70">Ingresos</span>
-              <span className="text-sm font-semibold">+ $4,690</span>
+              <span className="text-sm font-semibold">${monthlyIncome.toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm opacity-70">Gastos</span>
-              <span className="text-sm font-semibold">- $1,250</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm opacity-70">Deudas por cobrar</span>
