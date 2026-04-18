@@ -13,11 +13,12 @@ import { ClientModal } from './client-modal'
 interface ClientsListProps {
   clients: Client[]
   products: Product[]
+  canViewMoney: boolean
   onUpdateClient: (client: Client) => void
   onAddClient: (client: Client) => void
 }
 
-export function ClientsList({ clients, products, onUpdateClient, onAddClient }: ClientsListProps) {
+export function ClientsList({ clients, products, canViewMoney, onUpdateClient, onAddClient }: ClientsListProps) {
   const [searchDni, setSearchDni] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
@@ -25,14 +26,12 @@ export function ClientsList({ clients, products, onUpdateClient, onAddClient }: 
   const filteredClients = clients.filter((client) => {
   const dni = String(client.dni || "")
   const name = client.name?.toLowerCase() || ""
-  const product = client.product?.toLowerCase() || ""
 
   const search = searchDni.toLowerCase()
 
   return (
     dni.includes(search) ||
-    name.includes(search) ||
-    product.includes(search)
+    name.includes(search)
   )
 })
 
@@ -151,7 +150,9 @@ export function ClientsList({ clients, products, onUpdateClient, onAddClient }: 
 
                   <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider hidden lg:table-cell">Plan</TableHead>
                   <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider">Estado</TableHead>
-                  <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider hidden sm:table-cell">Deuda</TableHead>
+                  {canViewMoney && (
+                    <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider hidden sm:table-cell">Deuda</TableHead>
+                  )}
                   <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -176,15 +177,17 @@ export function ClientsList({ clients, products, onUpdateClient, onAddClient }: 
                       </Badge>
                     </TableCell>
                     <TableCell>{getStatusBadge(client.status)}</TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      {getTotalDebt(client) > 0 ? (
-                        <span className="text-[#FF6B6B] font-semibold">
-                          ${getTotalDebt(client).toLocaleString()}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
+                    {canViewMoney && (
+                      <TableCell className="hidden sm:table-cell">
+                        {getTotalDebt(client) > 0 ? (
+                          <span className="text-[#FF6B6B] font-semibold">
+                            ${getTotalDebt(client).toLocaleString()}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell className="text-right">
                       <Button 
                         variant="ghost" 
@@ -213,6 +216,7 @@ export function ClientsList({ clients, products, onUpdateClient, onAddClient }: 
       <ClientModal
         client={editingClient}
         products={products}
+        canViewMoney={canViewMoney}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}

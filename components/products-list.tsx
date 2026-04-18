@@ -16,9 +16,10 @@ interface ProductsListProps {
   clients: Client[]
   onUpdateProduct: (product: Product) => void
   onAddProduct: (product: Product) => void
+  onSaleRecorded: () => void
 }
 
-export function ProductsList({ products, clients, onUpdateProduct, onAddProduct }: ProductsListProps) {
+export function ProductsList({ products, clients, onUpdateProduct, onAddProduct, onSaleRecorded }: ProductsListProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Product | null>(null)
@@ -91,6 +92,7 @@ export function ProductsList({ products, clients, onUpdateProduct, onAddProduct 
 
       setIsSelling(false)
       setSellingProduct(null)
+      onSaleRecorded()
     } catch (error) {
       console.error('Error registrando venta:', error)
     }

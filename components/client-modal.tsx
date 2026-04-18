@@ -14,12 +14,13 @@ import { plans, planPrices } from '@/lib/mock-data'
 interface ClientModalProps {
   client: Client | null
   products: Product[]
+  canViewMoney: boolean
   isOpen: boolean
   onClose: () => void
   onSave: (client: Client) => void
 }
 
-export function ClientModal({ client, products, isOpen, onClose, onSave }: ClientModalProps) {
+export function ClientModal({ client, products, canViewMoney, isOpen, onClose, onSave }: ClientModalProps) {
   const [formData, setFormData] = useState<Client>({
     id: '',
     name: '',
@@ -158,7 +159,7 @@ export function ClientModal({ client, products, isOpen, onClose, onSave }: Clien
                     <SelectContent className="bg-popover border-border">
                       {plans.map((plan) => (
                         <SelectItem key={plan} value={plan} className="text-foreground hover:bg-secondary">
-                          {plan} - ${planPrices[plan].toLocaleString()}
+                          {canViewMoney ? `${plan} - $${planPrices[plan].toLocaleString()}` : plan}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -183,69 +184,70 @@ export function ClientModal({ client, products, isOpen, onClose, onSave }: Clien
               </div>
             </FieldGroup>
 
-            {/* Deudas */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium text-foreground">Deudas de Productos</h4>
-                {totalDebt > 0 && (
-                  <Badge variant="destructive">Total: ${totalDebt.toLocaleString()}</Badge>
-                )}
-              </div>
-
-              {formData.debts.length > 0 && (
-                <div className="space-y-2">
-                  {formData.debts.map((debt) => (
-                    <div 
-                      key={debt.id} 
-                      className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{debt.productName}</p>
-                        <p className="text-xs text-muted-foreground">{debt.date}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-destructive">
-                          ${debt.amount.toLocaleString()}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemoveDebt(debt.id)}
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+            {canViewMoney && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium text-foreground">Deudas de Productos</h4>
+                  {totalDebt > 0 && (
+                    <Badge variant="destructive">Total: ${totalDebt.toLocaleString()}</Badge>
+                  )}
                 </div>
-              )}
 
-              <div className="flex gap-2">
-                <Select value={newDebtProductId} onValueChange={setNewDebtProductId}>
-                  <SelectTrigger className="flex-1 bg-input border-border text-foreground">
-                    <SelectValue placeholder="Seleccionar producto" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover border-border">
-                    {products.map((product) => (
-                      <SelectItem key={product.id} value={String(product.id)} className="text-foreground hover:bg-secondary">
-                        {product.name} - ${product.price.toLocaleString()}
-                      </SelectItem>
+                {formData.debts.length > 0 && (
+                  <div className="space-y-2">
+                    {formData.debts.map((debt) => (
+                      <div
+                        key={debt.id}
+                        className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border"
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{debt.productName}</p>
+                          <p className="text-xs text-muted-foreground">{debt.date}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-destructive">
+                            ${debt.amount.toLocaleString()}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveDebt(debt.id)}
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
                     ))}
-                  </SelectContent>
-                </Select>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={handleAddDebt}
-                  disabled={!newDebtProductId}
-                  className="border-border text-foreground hover:bg-secondary"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <Select value={newDebtProductId} onValueChange={setNewDebtProductId}>
+                    <SelectTrigger className="flex-1 bg-input border-border text-foreground">
+                      <SelectValue placeholder="Seleccionar producto" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover border-border">
+                      {products.map((product) => (
+                        <SelectItem key={product.id} value={String(product.id)} className="text-foreground hover:bg-secondary">
+                          {product.name} - ${product.price.toLocaleString()}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleAddDebt}
+                    disabled={!newDebtProductId}
+                    className="border-border text-foreground hover:bg-secondary"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="flex gap-3 pt-4">
               <Button 

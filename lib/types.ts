@@ -1,4 +1,19 @@
 export type ClientStatus = 'active' | 'inactive' | 'pending_payment'
+export type UserRole = 'admin' | 'superadmin'
+
+export interface AuthUser {
+  id: number
+  username: string
+  role: UserRole
+}
+
+export interface AdminAccount {
+  id: number
+  username: string
+  role: UserRole
+  createdAt?: string
+  updatedAt?: string
+}
 
 export interface Product {
   id: string
@@ -32,4 +47,9 @@ export interface MonthlyData {
   month: string
   clients: number
   products: number
+}
+
+export interface AnalyticsSummary {
+  totalRevenue: number
+  totalSales: number
 }

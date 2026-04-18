@@ -1,7 +1,13 @@
 import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth";
 
 import { NextResponse } from "next/server";
 
+const planPrices: Record<string, number> = {
+    "Básico": 15000,
+    Premium: 25000,
+    VIP: 35000,
+}
 
 
 export async function GET(
@@ -11,6 +17,8 @@ export async function GET(
     { params }: { params: Promise<{ dni: string }> }
 
 ) {
+    const user = await requireUser()
+    if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
     try {
 
@@ -49,10 +57,10 @@ export async function GET(
             name: client.nameComplete,
             phone: "",
             plan: client.mode,
-            planPrice: client.fee,
+            planPrice: user.role === "superadmin" ? client.fee : 0,
             status: client.debt > 0 ? "pending_payment" : "active",
             joinDate: client.joinDate.toISOString().split('T')[0],
-                debts: client.debt > 0 ? [{
+                debts: user.role === "superadmin" && client.debt > 0 ? [{
 
                 id: `debt-${client.dni}`,
 
@@ -89,16 +97,19 @@ export async function PUT(
     { params }: { params: Promise<{ dni: string }> }
 
 ) {
+    const user = await requireUser()
+    if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
     try {
 
         const { dni } = await params
 
         const body = await request.json()
+        const plan = String(body.plan || "Básico")
 
-        const totalDebt = Array.isArray(body.debts)
+        const totalDebt = user.role === "superadmin" && Array.isArray(body.debts)
             ? body.debts.reduce((sum: number, debt: { amount?: number }) => sum + Number(debt?.amount || 0), 0)
-            : Number(body.debt || 0)
+            : user.role === "superadmin" ? Number(body.debt || 0) : undefined
 
         const updateClient = await prisma.client.update({
 
@@ -112,9 +123,9 @@ export async function PUT(
 
                 nameComplete: body.name,
 
-                fee: body.planPrice,
+                fee: user.role === "superadmin" ? Number(body.planPrice || planPrices[plan] || 0) : undefined,
 
-                mode: body.plan,
+                mode: plan,
 
                 paymentMethod: body.paymentMethod ?? "efectivo",
 
@@ -133,10 +144,10 @@ export async function PUT(
             name: updateClient.nameComplete,
             phone: "",
             plan: updateClient.mode,
-            planPrice: updateClient.fee,
+            planPrice: user.role === "superadmin" ? updateClient.fee : 0,
             status: updateClient.debt > 0 ? "pending_payment" : "active",
             joinDate: updateClient.joinDate.toISOString().split('T')[0],
-            debts: updateClient.debt > 0 ? [{
+            debts: user.role === "superadmin" && updateClient.debt > 0 ? [{
                 id: `debt-${updateClient.dni}`,
                 productId: 'general',
                 productName: 'Deuda General',
@@ -164,6 +175,8 @@ export async function DELETE(
     { params }: {params: Promise<{dni: string}>}
 
 ) {
+    const user = await requireUser()
+    if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
     try {
 
@@ -188,4 +201,3 @@ export async function DELETE(
     }
 
 }
-

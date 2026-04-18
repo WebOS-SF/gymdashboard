@@ -6,13 +6,14 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { FieldGroup, Field, FieldLabel } from '@/components/ui/field'
 import { Dumbbell, Eye, EyeOff } from 'lucide-react'
+import { AuthUser } from '@/lib/types'
 
 interface LoginFormProps {
-  onLogin: () => void
+  onLogin: (user: AuthUser) => void
 }
 
 export function LoginForm({ onLogin }: LoginFormProps) {
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
@@ -23,16 +24,26 @@ export function LoginForm({ onLogin }: LoginFormProps) {
     setError('')
     setIsLoading(true)
 
-    // Simular delay de red
-    await new Promise(resolve => setTimeout(resolve, 800))
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      })
 
-    // Credenciales predefinidas
-    if (email === 'user123' && password === 'user123') {
-      onLogin()
-    } else {
-      setError('Credenciales incorrectas. Usa user123 / user123')
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data?.error || 'Credenciales incorrectas')
+        return
+      }
+
+      onLogin(data.user)
+    } catch (error) {
+      setError('No se pudo iniciar sesión')
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }
 
   return (
@@ -59,9 +70,9 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                 <Input
                   id="email"
                   type="text"
-                  placeholder="user123"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="superadmin"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   className="h-12 rounded-xl bg-secondary/50 border-0 text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/20"
                   required
                 />
@@ -72,7 +83,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                   <Input
                     id="password"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="user123"
+                    placeholder="Contraseña"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="h-12 rounded-xl bg-secondary/50 border-0 text-foreground placeholder:text-muted-foreground pr-12 focus-visible:ring-primary/20"
@@ -104,7 +115,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
             </Button>
 
             <p className="text-xs text-muted-foreground text-center pt-2">
-              Credenciales de prueba: <span className="font-medium">user123</span> / <span className="font-medium">user123</span>
+              Primer ingreso: <span className="font-medium">superadmin</span> / <span className="font-medium">superadmin</span>
             </p>
           </form>
         </CardContent>

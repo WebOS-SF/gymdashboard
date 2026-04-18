@@ -7,49 +7,74 @@ import { StatsCards } from './stats-cards'
 import { DashboardCharts } from './dashboard-charts'
 import { ClientsList } from './clients-list'
 import { ProductsList } from './products-list'
-import { Client, Product, MonthlyData } from '@/lib/types'
-import { Users, Package } from 'lucide-react'
+import { AdminAccounts } from './admin-accounts'
+import { AnalyticsSummary, AuthUser, Client, Product, MonthlyData } from '@/lib/types'
+import { Users, Package, Shield } from 'lucide-react'
 
 interface DashboardProps {
+  user: AuthUser
   onLogout: () => void
 }
 
-export function Dashboard({ onLogout }: DashboardProps) {
+type ViewMode = 'clients' | 'products' | 'admins'
+
+export function Dashboard({ user, onLogout }: DashboardProps) {
   const [clients, setClients] = useState<Client[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([])
-  const [viewMode, setViewMode] = useState<'clients' | 'products'>('clients')
+  const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>('clients')
+  const isSuperadmin = user.role === 'superadmin'
 
   const fetchProducts = useCallback(async () => {
+    if (!isSuperadmin) return
     const res = await fetch('/api/product')
+    if (!res.ok) return
     const data = await res.json()
     setProducts(data)
-  }, [])
+  }, [isSuperadmin])
 
   const fetchClients = useCallback(async () => {
     const res = await fetch('/api/clients')
+    if (!res.ok) return
     const data = await res.json()
     setClients(data)
   }, [])
 
   const fetchMonthly = useCallback(async () => {
+    if (!isSuperadmin) return
     const res = await fetch('/api/analytics/monthly')
+    if (!res.ok) return
     const data = await res.json()
     setMonthlyData(data)
-  }, [])
+  }, [isSuperadmin])
+
+  const fetchAnalytics = useCallback(async () => {
+    if (!isSuperadmin) return
+    const res = await fetch('/api/analytics')
+    if (!res.ok) return
+    const data = await res.json()
+    setAnalytics({
+      totalRevenue: data.totalRevenue || 0,
+      totalSales: data.totalSales || 0,
+    })
+  }, [isSuperadmin])
 
   useEffect(() => {
     fetchProducts()
     fetchClients()
     fetchMonthly()
-  }, [fetchProducts, fetchClients, fetchMonthly])
+    fetchAnalytics()
+  }, [fetchProducts, fetchClients, fetchMonthly, fetchAnalytics])
 
   const refreshAfterSale = useCallback(async () => {
+    if (!isSuperadmin) return
     await Promise.all([
       fetchProducts(),
       fetchMonthly(),
+      fetchAnalytics(),
     ])
-  }, [fetchProducts, fetchMonthly])
+  }, [fetchProducts, fetchMonthly, fetchAnalytics, isSuperadmin])
 
   const handleUpdateClient = (updatedClient: Client) => {
     setClients(prev => prev.map(c => c.id === updatedClient.id ? updatedClient : c))
@@ -69,14 +94,18 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
   return (
     <div className="min-h-screen bg-background">
-      <DashboardHeader onLogout={onLogout} />
+      <DashboardHeader user={user} onLogout={onLogout} />
       
       <main className="p-4 space-y-4">
-        {/* Stats Grid with Balance Card */}
-        <StatsCards clients={clients} products={products} />
+        {isSuperadmin && (
+          <>
+            {/* Stats Grid with Balance Card */}
+            <StatsCards clients={clients} products={products} analytics={analytics} />
 
-        {/* Charts Section */}
-        <DashboardCharts data={monthlyData} />
+            {/* Charts Section */}
+            <DashboardCharts data={monthlyData} />
+          </>
+        )}
 
         {/* Toggle View */}
         <div className="flex items-center gap-1 p-1 bg-card rounded-xl w-fit shadow-sm">
@@ -93,19 +122,36 @@ export function Dashboard({ onLogout }: DashboardProps) {
             <Users className="h-4 w-4 mr-2" />
             Clientes
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setViewMode('products')}
-            className={`rounded-lg transition-all ${
-              viewMode === 'products' 
-                ? 'bg-primary text-primary-foreground shadow-md' 
-                : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
-            }`}
-          >
-            <Package className="h-4 w-4 mr-2" />
-            Productos
-          </Button>
+          {isSuperadmin && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setViewMode('products')}
+                className={`rounded-lg transition-all ${
+                  viewMode === 'products' 
+                    ? 'bg-primary text-primary-foreground shadow-md' 
+                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+                }`}
+              >
+                <Package className="h-4 w-4 mr-2" />
+                Productos
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setViewMode('admins')}
+                className={`rounded-lg transition-all ${
+                  viewMode === 'admins'
+                    ? 'bg-primary text-primary-foreground shadow-md'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+                }`}
+              >
+                <Shield className="h-4 w-4 mr-2" />
+                Admins
+              </Button>
+            </>
+          )}
         </div>
 
         {/* List View */}
@@ -113,10 +159,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
           <ClientsList
             clients={clients}
             products={products}
+            canViewMoney={isSuperadmin}
             onUpdateClient={handleUpdateClient}
             onAddClient={handleAddClient}
           />
-        ) : (
+        ) : viewMode === 'products' && isSuperadmin ? (
           <ProductsList
             products={products}
             clients={clients}
@@ -124,6 +171,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
             onAddProduct={handleAddProduct}
             onSaleRecorded={refreshAfterSale}
           />
+        ) : (
+          <AdminAccounts currentUserId={user.id} />
         )}
       </main>
     </div>

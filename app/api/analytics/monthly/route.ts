@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { requireSuperadmin } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
 function monthLabel(date: Date) {
@@ -6,6 +7,9 @@ function monthLabel(date: Date) {
 }
 
 export async function GET() {
+  const user = await requireSuperadmin()
+  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 403 })
+
   try {
     const now = new Date();
 

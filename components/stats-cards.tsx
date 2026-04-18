@@ -1,20 +1,23 @@
 'use client'
 
 import { Card, CardContent } from '@/components/ui/card'
-import { Users, Package, DollarSign, AlertCircle, TrendingUp, CreditCard } from 'lucide-react'
-import { Client, Product } from '@/lib/types'
+import { Users, Package, DollarSign, TrendingUp, CreditCard } from 'lucide-react'
+import { AnalyticsSummary, Client, Product } from '@/lib/types'
 
 interface StatsCardsProps {
   clients: Client[]
   products: Product[]
+  analytics: AnalyticsSummary | null
 }
 
-export function StatsCards({ clients, products }: StatsCardsProps) {
+export function StatsCards({ clients, products, analytics }: StatsCardsProps) {
   const activeClients = clients?.filter(c => c.status === 'active').length || 0
   const pendingPayments = clients?.filter(c => c.status === 'pending_payment').length || 0
   const totalStock = products?.reduce((acc, p) => acc + p.stock, 0) || 0
   const totalDebts = clients?.reduce((acc, c) => acc + ((c.debts || []).reduce((a, d) => a + d.amount, 0)), 0) || 0
   const monthlyIncome = clients?.reduce((acc, c) => acc + c.planPrice, 0) || 0
+  const salesRevenue = analytics?.totalRevenue || 0
+  const totalEarned = monthlyIncome + salesRevenue
 
   // Calculate dynamic trends based on real data
   const newClientsThisMonth = Math.floor((clients?.length || 0) * 0.15) // Estimate based on total clients
@@ -33,22 +36,22 @@ export function StatsCards({ clients, products }: StatsCardsProps) {
       trendUp: newClientsThisMonth > 0
     },
     {
-      title: 'Ingresos Mensuales',
+      title: 'Membresías',
       value: `$${monthlyIncome.toLocaleString()}`,
-      subtitle: `vs $${previousMonthIncome.toLocaleString()} mes anterior`,
+      subtitle: `vs $${previousMonthIncome.toLocaleString()} estimado`,
       icon: DollarSign,
       iconBg: 'bg-gradient-to-br from-[#5B8DEF] to-[#4a7de0]',
       trend: `${incomeChangePercent > 0 ? '+' : ''}${incomeChangePercent}%`,
       trendUp: incomeChangePercent > 0
     },
     {
-      title: 'Miembros Totales',
-      value: clients?.length.toString() || '0',
-      subtitle: `${pendingPayments} pagos pendientes`,
+      title: 'Ventas Facturadas',
+      value: `$${salesRevenue.toLocaleString()}`,
+      subtitle: `${analytics?.totalSales || 0} ventas registradas`,
       icon: TrendingUp,
       iconBg: 'bg-gradient-to-br from-[#9B6DD7] to-[#8a5cc6]',
-      trend: `${activeClients > 0 ? '+' : ''}${Math.round((activeClients / Math.max((clients?.length || 0) - activeClients, 1)) * 100)}%`,
-      trendUp: activeClients > pendingPayments
+      trend: `${analytics?.totalSales || 0}`,
+      trendUp: salesRevenue > 0
     },
     {
       title: 'Productos',
@@ -90,17 +93,19 @@ export function StatsCards({ clients, products }: StatsCardsProps) {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <CreditCard className="h-5 w-5 opacity-80" />
-              <span className="text-sm font-medium opacity-80">Balance Total</span>
+              <span className="text-sm font-medium opacity-80">Total Ganado</span>
             </div>
-            <p className="text-4xl font-bold mb-4">${(monthlyIncome * 3.2).toLocaleString()}</p>
+            <p className="text-4xl font-bold mb-4">${totalEarned.toLocaleString()}</p>
           </div>
           
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm opacity-70">Ingresos</span>
+              <span className="text-sm opacity-70">Membresías</span>
               <span className="text-sm font-semibold">${monthlyIncome.toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between">
+              <span className="text-sm opacity-70">Ventas</span>
+              <span className="text-sm font-semibold">${salesRevenue.toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm opacity-70">Deudas por cobrar</span>

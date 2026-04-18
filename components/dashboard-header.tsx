@@ -4,12 +4,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dumbbell, LogOut, Sun, Moon, Search, Bell } from 'lucide-react'
 import { useTheme } from '@/hooks/use-theme'
+import { AuthUser } from '@/lib/types'
 
 interface DashboardHeaderProps {
+  user: AuthUser
   onLogout: () => void
 }
 
-export function DashboardHeader({ onLogout }: DashboardHeaderProps) {
+export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
   const { theme, toggleTheme, mounted } = useTheme()
 
   return (
@@ -22,7 +24,9 @@ export function DashboardHeader({ onLogout }: DashboardHeaderProps) {
           </div>
           <div className="hidden sm:block">
             <h1 className="text-lg font-bold text-foreground">GymPro</h1>
-            <p className="text-xs text-muted-foreground">Dashboard</p>
+            <p className="text-xs text-muted-foreground">
+              {user.username} · {user.role === 'superadmin' ? 'Superadmin' : 'Admin'}
+            </p>
           </div>
         </div>
 
