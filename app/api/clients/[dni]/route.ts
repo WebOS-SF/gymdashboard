@@ -1,13 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { formatClient, normalizeClientStatus, normalizePaymentMethod, normalizeTurn, planPrices } from "@/lib/client-utils";
 
 import { NextResponse } from "next/server";
-
-const planPrices: Record<string, number> = {
-    "Básico": 15000,
-    Premium: 25000,
-    VIP: 35000,
-}
 
 
 export async function GET(
@@ -51,34 +46,7 @@ export async function GET(
             return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 })
 
         }
-        const formattedClient = {
-            id: client.dni.toString(),
-            dni: client.dni.toString(),
-            name: client.nameComplete,
-            phone: "",
-            plan: client.mode,
-            planPrice: user.role === "superadmin" ? client.fee : 0,
-            status: client.debt > 0 ? "pending_payment" : "active",
-            joinDate: client.joinDate.toISOString().split('T')[0],
-                debts: user.role === "superadmin" && client.debt > 0 ? [{
-
-                id: `debt-${client.dni}`,
-
-                productId: 'general',
-
-                productName: 'Deuda General',
-
-                amount: client.debt,
-
-                date: client.joinDate.toISOString().split('T')[0]
-
-            }] : []
-
-        }
-
-
-
-        return NextResponse.json(formattedClient)
+        return NextResponse.json(formatClient(client))
 
     } catch (error) {
 
@@ -106,10 +74,13 @@ export async function PUT(
 
         const body = await request.json()
         const plan = String(body.plan || "Básico")
+        const planPrice = Number(body.planPrice ?? planPrices[plan] ?? 0)
 
-        const totalDebt = user.role === "superadmin" && Array.isArray(body.debts)
+        const totalDebt = typeof body.debt !== "undefined"
+            ? Number(body.debt || 0)
+            : Array.isArray(body.debts)
             ? body.debts.reduce((sum: number, debt: { amount?: number }) => sum + Number(debt?.amount || 0), 0)
-            : user.role === "superadmin" ? Number(body.debt || 0) : undefined
+            : 0
 
         const updateClient = await prisma.client.update({
 
@@ -123,40 +94,25 @@ export async function PUT(
 
                 nameComplete: body.name,
 
-                fee: user.role === "superadmin" ? Number(body.planPrice || planPrices[plan] || 0) : undefined,
+                joinDate: body.joinDate ? new Date(body.joinDate) : undefined,
+
+                fee: Number.isFinite(planPrice) ? planPrice : 0,
 
                 mode: plan,
 
-                paymentMethod: body.paymentMethod ?? "efectivo",
+                paymentMethod: normalizePaymentMethod(body.paymentMethod),
 
-                turn: body.turn ?? "mañana",
+                turn: normalizeTurn(body.turn),
 
-                debt: totalDebt
+                debt: Number.isFinite(totalDebt) ? totalDebt : 0,
+
+                status: normalizeClientStatus(body.status),
 
             }
 
         })
 
-        // Return formatted client data like the GET endpoint
-        const formattedClient = {
-            id: updateClient.dni.toString(),
-            dni: updateClient.dni.toString(),
-            name: updateClient.nameComplete,
-            phone: "",
-            plan: updateClient.mode,
-            planPrice: user.role === "superadmin" ? updateClient.fee : 0,
-            status: updateClient.debt > 0 ? "pending_payment" : "active",
-            joinDate: updateClient.joinDate.toISOString().split('T')[0],
-            debts: user.role === "superadmin" && updateClient.debt > 0 ? [{
-                id: `debt-${updateClient.dni}`,
-                productId: 'general',
-                productName: 'Deuda General',
-                amount: updateClient.debt,
-                date: updateClient.joinDate.toISOString().split('T')[0]
-            }] : []
-        }
-
-        return NextResponse.json(formattedClient)
+        return NextResponse.json(formatClient(updateClient))
 
     } catch (error) {
 

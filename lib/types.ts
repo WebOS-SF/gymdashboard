@@ -40,6 +40,9 @@ export interface Client {
   plan: string
   planPrice: number
   joinDate: string
+  paymentMethod?: string
+  turn?: string
+  debt?: number
   debts: ClientDebt[]
 }
 

@@ -7,9 +7,33 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { FieldGroup, Field, FieldLabel } from '@/components/ui/field'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { X, Trash2, Plus } from 'lucide-react'
+import { X } from 'lucide-react'
 import { Client, ClientStatus, Product } from '@/lib/types'
 import { plans, planPrices } from '@/lib/mock-data'
+
+const paymentMethods = ['Efectivo', 'Tarjeta', 'Plin', 'Yape']
+const turns = ['Mañana', 'Tarde', 'Noche']
+
+function normalizeSelectValue(value: string | undefined, options: string[], fallback: string) {
+  const current = options.find((option) => option.toLowerCase() === String(value || '').toLowerCase())
+  return current || fallback
+}
+
+function normalizeStatusValue(value: string | undefined): ClientStatus {
+  const current = String(value || 'active').trim().toLowerCase()
+
+  if (current === 'inactive' || current === 'inactivo') return 'inactive'
+  if (
+    current === 'pending_payment' ||
+    current === 'pending payment' ||
+    current === 'pago pendiente' ||
+    current === 'pendiente'
+  ) {
+    return 'pending_payment'
+  }
+
+  return 'active'
+}
 
 interface ClientModalProps {
   client: Client | null
@@ -30,13 +54,21 @@ export function ClientModal({ client, products, canViewMoney, isOpen, onClose, o
     plan: 'Básico',
     planPrice: 15000,
     joinDate: new Date().toISOString().split('T')[0],
+    paymentMethod: 'Efectivo',
+    turn: 'Mañana',
+    debt: 0,
     debts: []
   })
-  const [newDebtProductId, setNewDebtProductId] = useState('')
 
   useEffect(() => {
     if (client) {
-      setFormData(client)
+      setFormData({
+        ...client,
+        status: normalizeStatusValue(client.status),
+        paymentMethod: normalizeSelectValue(client.paymentMethod, paymentMethods, 'Efectivo'),
+        turn: normalizeSelectValue(client.turn, turns, 'Mañana'),
+        debt: Number(client.debt || 0),
+      })
     } else {
       setFormData({   
         id: crypto.randomUUID(),
@@ -47,6 +79,9 @@ export function ClientModal({ client, products, canViewMoney, isOpen, onClose, o
         plan: 'Básico',
         planPrice: 15000,
         joinDate: new Date().toISOString().split('T')[0],
+        paymentMethod: 'Efectivo',
+        turn: 'Mañana',
+        debt: 0,
         debts: []
       })
     }
@@ -60,40 +95,20 @@ export function ClientModal({ client, products, canViewMoney, isOpen, onClose, o
     })
   }
 
-  const handleAddDebt = () => {
-    if (!newDebtProductId) return
-    const product = products.find(p => String(p.id) === newDebtProductId)
-    if (!product) return
-    
-    const newDebt = {
-      id: crypto.randomUUID(),
-      productId: String(product.id),
-      productName: product.name,
-      amount: product.price,
-      date: new Date().toISOString().split('T')[0]
-    }
-    
-    setFormData({
-      ...formData,
-      debts: [...formData.debts, newDebt],
-      status: 'pending_payment'
-    })
-    setNewDebtProductId('')
-  }
-
-  const handleRemoveDebt = (debtId: string) => {
-    const newDebts = formData.debts.filter(d => d.id !== debtId)
-    setFormData({
-      ...formData,
-      debts: newDebts,
-      status: newDebts.length === 0 && formData.status === 'pending_payment' ? 'active' : formData.status
-    })
-  }
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSave(formData)
-    onClose()
+    onSave({
+      ...formData,
+      status: normalizeStatusValue(formData.status),
+      debt: Number(formData.debt || 0),
+      debts: Number(formData.debt || 0) > 0 ? [{
+        id: `debt-${formData.dni}`,
+        productId: 'general',
+        productName: 'Deuda General',
+        amount: Number(formData.debt || 0),
+        date: formData.joinDate,
+      }] : [],
+    })
   }
 
   const getStatusLabel = (status: ClientStatus) => {
@@ -104,7 +119,7 @@ export function ClientModal({ client, products, canViewMoney, isOpen, onClose, o
     }
   }
 
-  const totalDebt = formData.debts.reduce((acc, d) => acc + d.amount, 0)
+  const totalDebt = Number(formData.debt || 0)
 
   if (!isOpen) return null
 
@@ -168,7 +183,7 @@ export function ClientModal({ client, products, canViewMoney, isOpen, onClose, o
                 <Field>
                   <FieldLabel>Estado</FieldLabel>
                   <Select 
-                    value={formData.status} 
+                    value={normalizeStatusValue(formData.status)}
                     onValueChange={(value: ClientStatus) => setFormData({ ...formData, status: value })}
                   >
                     <SelectTrigger className="bg-input border-border text-foreground">
@@ -182,69 +197,92 @@ export function ClientModal({ client, products, canViewMoney, isOpen, onClose, o
                   </Select>
                 </Field>
               </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Field>
+                  <FieldLabel htmlFor="joinDate">Fecha de Ingreso</FieldLabel>
+                  <Input
+                    id="joinDate"
+                    type="date"
+                    value={formData.joinDate}
+                    onChange={(e) => setFormData({ ...formData, joinDate: e.target.value })}
+                    className="bg-input border-border text-foreground"
+                    required
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="planPrice">Cuota</FieldLabel>
+                  <Input
+                    id="planPrice"
+                    type="number"
+                    min={0}
+                    value={formData.planPrice}
+                    onChange={(e) => setFormData({ ...formData, planPrice: Number(e.target.value) })}
+                    className="bg-input border-border text-foreground"
+                    required
+                  />
+                </Field>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Field>
+                  <FieldLabel>Medio de Pago</FieldLabel>
+                  <Select
+                    value={formData.paymentMethod}
+                    onValueChange={(paymentMethod) => setFormData({ ...formData, paymentMethod })}
+                  >
+                    <SelectTrigger className="bg-input border-border text-foreground">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover border-border">
+                      {paymentMethods.map((method) => (
+                        <SelectItem key={method} value={method} className="text-foreground hover:bg-secondary">
+                          {method}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field>
+                  <FieldLabel>Turno</FieldLabel>
+                  <Select
+                    value={formData.turn}
+                    onValueChange={(turn) => setFormData({ ...formData, turn })}
+                  >
+                    <SelectTrigger className="bg-input border-border text-foreground">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover border-border">
+                      {turns.map((turn) => (
+                        <SelectItem key={turn} value={turn} className="text-foreground hover:bg-secondary">
+                          {turn}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+
+              <Field>
+                <FieldLabel htmlFor="debt">Deuda</FieldLabel>
+                <Input
+                  id="debt"
+                  type="number"
+                  min={0}
+                  value={formData.debt}
+                  onChange={(e) => setFormData({ ...formData, debt: Number(e.target.value) })}
+                  className="bg-input border-border text-foreground"
+                />
+              </Field>
             </FieldGroup>
 
             {canViewMoney && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-medium text-foreground">Deudas de Productos</h4>
-                  {totalDebt > 0 && (
-                    <Badge variant="destructive">Total: ${totalDebt.toLocaleString()}</Badge>
-                  )}
-                </div>
-
-                {formData.debts.length > 0 && (
-                  <div className="space-y-2">
-                    {formData.debts.map((debt) => (
-                      <div
-                        key={debt.id}
-                        className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border"
-                      >
-                        <div>
-                          <p className="text-sm font-medium text-foreground">{debt.productName}</p>
-                          <p className="text-xs text-muted-foreground">{debt.date}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-destructive">
-                            ${debt.amount.toLocaleString()}
-                          </span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleRemoveDebt(debt.id)}
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="flex gap-2">
-                  <Select value={newDebtProductId} onValueChange={setNewDebtProductId}>
-                    <SelectTrigger className="flex-1 bg-input border-border text-foreground">
-                      <SelectValue placeholder="Seleccionar producto" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-popover border-border">
-                      {products.map((product) => (
-                        <SelectItem key={product.id} value={String(product.id)} className="text-foreground hover:bg-secondary">
-                          {product.name} - ${product.price.toLocaleString()}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleAddDebt}
-                    disabled={!newDebtProductId}
-                    className="border-border text-foreground hover:bg-secondary"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
+                  <h4 className="text-sm font-medium text-foreground">Resumen del Cliente</h4>
+                  <Badge variant={totalDebt > 0 ? 'destructive' : 'outline'}>
+                    Deuda: ${totalDebt.toLocaleString()}
+                  </Badge>
                 </div>
               </div>
             )}

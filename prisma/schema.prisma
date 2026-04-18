@@ -34,6 +34,7 @@ model Client {
   paymentMethod String
   turn          String
   debt          Float         @default(0)
+  status        String        @default("active")
   appointments  Appointment[]
   boletas       Boleta[]
   sales         SalesRecord[]

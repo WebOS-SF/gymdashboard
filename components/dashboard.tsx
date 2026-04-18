@@ -159,7 +159,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
           <ClientsList
             clients={clients}
             products={products}
-            canViewMoney={isSuperadmin}
+            canViewMoney={true}
             onUpdateClient={handleUpdateClient}
             onAddClient={handleAddClient}
           />

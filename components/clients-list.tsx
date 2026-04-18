@@ -46,41 +46,32 @@ export function ClientsList({ clients, products, canViewMoney, onUpdateClient, o
   }
 
   const handleSave = async (client: Client) => {
-  try {
-    if (editingClient) {
-      // ✏️ UPDATE
-      const res = await fetch(`/api/clients/${client.dni}`, {
-        method: "PUT",
+    try {
+      const res = await fetch(editingClient ? `/api/clients/${client.dni}` : "/api/clients", {
+        method: editingClient ? "PUT" : "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(client),
-      });
+      })
 
-      const updated = await res.json();
-      console.log("Response:", updated);
-      onUpdateClient(updated);
-      console.log("Cliente actualizado:", updated);
+      const payload = await res.json()
 
-    } else {
-      // ➕ CREATE
-      const res = await fetch("/api/clients", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(client),
-      });
+      if (!res.ok) {
+        throw new Error(payload?.error || "Error guardando cliente")
+      }
 
-      const created = await res.json();
-      onAddClient(created);
+      if (editingClient) {
+        onUpdateClient(payload)
+      } else {
+        onAddClient(payload)
+      }
+
+      setIsModalOpen(false)
+    } catch (error) {
+      console.error("Error guardando cliente:", error)
     }
-
-    setIsModalOpen(false);
-  } catch (error) {
-    console.error("Error guardando cliente:", error);
   }
-};
 
   const getStatusBadge = (status: Client['status']) => {
     switch (status) {
@@ -149,6 +140,11 @@ export function ClientsList({ clients, products, canViewMoney, onUpdateClient, o
                   <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider">DNI</TableHead>
 
                   <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider hidden lg:table-cell">Plan</TableHead>
+                  {canViewMoney && (
+                    <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider hidden xl:table-cell">Cuota</TableHead>
+                  )}
+                  <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider hidden xl:table-cell">Pago</TableHead>
+                  <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider hidden xl:table-cell">Turno</TableHead>
                   <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider">Estado</TableHead>
                   {canViewMoney && (
                     <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider hidden sm:table-cell">Deuda</TableHead>
@@ -175,6 +171,17 @@ export function ClientsList({ clients, products, canViewMoney, onUpdateClient, o
                       <Badge variant="outline" className="border-border/50 text-foreground font-normal rounded-lg">
                         {client.plan}
                       </Badge>
+                    </TableCell>
+                    {canViewMoney && (
+                      <TableCell className="hidden xl:table-cell text-foreground font-medium">
+                        ${client.planPrice.toLocaleString()}
+                      </TableCell>
+                    )}
+                    <TableCell className="hidden xl:table-cell text-muted-foreground">
+                      {client.paymentMethod}
+                    </TableCell>
+                    <TableCell className="hidden xl:table-cell text-muted-foreground">
+                      {client.turn}
                     </TableCell>
                     <TableCell>{getStatusBadge(client.status)}</TableCell>
                     {canViewMoney && (
