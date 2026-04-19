@@ -9,6 +9,9 @@ export async function GET() {
 
   try {
     const clients = await prisma.client.findMany({
+      where: {
+        dni: { not: 0 },
+      },
       orderBy: {
         joinDate: "desc",
       },

@@ -27,7 +27,10 @@ export async function GET() {
 
     const [clients, sales] = await Promise.all([
       prisma.client.findMany({
-        where: { joinDate: { gte: from } },
+        where: {
+          dni: { not: 0 },
+          joinDate: { gte: from },
+        },
         select: { joinDate: true },
       }),
       prisma.salesRecord.findMany({

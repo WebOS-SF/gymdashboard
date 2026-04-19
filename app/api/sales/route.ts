@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { requireSuperadmin } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
+const WALK_IN_CLIENT_DNI = 0
+
 export async function GET(){
     const user = await requireSuperadmin()
     if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 403 })
@@ -30,7 +32,8 @@ export async function POST(req: Request) {
     const body = await req.json();
 
     const productId = Number(body.productId)
-    const clientDni = Number(body.clientDni)
+    const isWalkInClient = body.isWalkInClient === true
+    const clientDni = isWalkInClient ? WALK_IN_CLIENT_DNI : Number(body.clientDni)
     const quantity = Number(body.quantity ?? 1)
 
     if (!Number.isFinite(productId) || !Number.isFinite(clientDni) || !Number.isFinite(quantity) || quantity <= 0) {
@@ -48,6 +51,23 @@ export async function POST(req: Request) {
 
       if (product.stock < quantity) {
         return { error: "Not enough stock" as const }
+      }
+
+      if (isWalkInClient) {
+        await tx.client.upsert({
+          where: { dni: WALK_IN_CLIENT_DNI },
+          update: {},
+          create: {
+            dni: WALK_IN_CLIENT_DNI,
+            nameComplete: "Cliente espontáneo",
+            joinDate: new Date(),
+            fee: 0,
+            mode: "Espontáneo",
+            paymentMethod: "Efectivo",
+            turn: "Sin turno",
+            status: "inactive",
+          },
+        })
       }
 
       const updatedProduct = await tx.product.update({
