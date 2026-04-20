@@ -8,21 +8,28 @@ datasource db {
 }
 
 model Product {
-  id       Int     @id @default(autoincrement())
-  name     String
-  price    Float
-  stock    Int
-  category String
+  id          Int           @id @default(autoincrement())
+  name        String
+  price       Float
+  stock       Int
+  category    String
+  createdById Int?
+  createdBy   AdminAccount? @relation("ProductsCreated", fields: [createdById], references: [id], onDelete: SetNull)
 }
 
 model AdminAccount {
-  id           Int      @id @default(autoincrement())
-  username     String   @unique
-  passwordHash String
-  passwordSalt String
-  role         String   @default("admin")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                    Int            @id @default(autoincrement())
+  username              String         @unique
+  passwordHash          String
+  passwordSalt          String
+  role                  String         @default("admin")
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  clientsCreated        Client[]       @relation("ClientsCreated")
+  productsCreated       Product[]      @relation("ProductsCreated")
+  salesRecorded         SalesRecord[]  @relation("SalesRecorded")
+  notificationsReceived Notification[] @relation("NotificationsReceived")
+  notificationsCreated  Notification[] @relation("NotificationsCreated")
 }
 
 model Client {
@@ -35,6 +42,8 @@ model Client {
   turn          String
   debt          Float         @default(0)
   status        String        @default("active")
+  createdById   Int?
+  createdBy     AdminAccount? @relation("ClientsCreated", fields: [createdById], references: [id], onDelete: SetNull)
   appointments  Appointment[]
   boletas       Boleta[]
   sales         SalesRecord[]
@@ -46,7 +55,24 @@ model SalesRecord {
   product   String
   amount    Float
   clientDni Int
+  soldById  Int?
   client    Client   @relation(fields: [clientDni], references: [dni], onDelete: Cascade)
+  soldBy    AdminAccount? @relation("SalesRecorded", fields: [soldById], references: [id], onDelete: SetNull)
+}
+
+model Notification {
+  id          Int           @id @default(autoincrement())
+  recipientId Int
+  actorId     Int?
+  type        String
+  title       String
+  message     String
+  entityType  String?
+  entityId    String?
+  readAt      DateTime?
+  createdAt   DateTime      @default(now())
+  recipient   AdminAccount  @relation("NotificationsReceived", fields: [recipientId], references: [id], onDelete: Cascade)
+  actor       AdminAccount? @relation("NotificationsCreated", fields: [actorId], references: [id], onDelete: SetNull)
 }
 
 model Boleta {

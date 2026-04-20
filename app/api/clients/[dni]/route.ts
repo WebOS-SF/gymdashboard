@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { formatClient, normalizeClientStatus, normalizePaymentMethod, normalizeTurn, planPrices } from "@/lib/client-utils";
+import { notifyPaymentPending } from "@/lib/notifications";
 
 import { NextResponse } from "next/server";
 
@@ -75,12 +76,23 @@ export async function PUT(
         const body = await request.json()
         const plan = String(body.plan || "Básico")
         const planPrice = Number(body.planPrice ?? planPrices[plan] ?? 0)
+        const status = normalizeClientStatus(body.status)
 
         const totalDebt = typeof body.debt !== "undefined"
             ? Number(body.debt || 0)
             : Array.isArray(body.debts)
             ? body.debts.reduce((sum: number, debt: { amount?: number }) => sum + Number(debt?.amount || 0), 0)
             : 0
+
+        const previousClient = await prisma.client.findUnique({
+            where: {
+                dni: Number(dni)
+            },
+            select: {
+                debt: true,
+                status: true,
+            }
+        })
 
         const updateClient = await prisma.client.update({
 
@@ -106,11 +118,18 @@ export async function PUT(
 
                 debt: Number.isFinite(totalDebt) ? totalDebt : 0,
 
-                status: normalizeClientStatus(body.status),
+                status,
 
             }
 
         })
+
+        const wasPending = previousClient?.status === "pending_payment" || (previousClient?.debt ?? 0) > 0
+        const isPending = updateClient.status === "pending_payment" || updateClient.debt > 0
+
+        if (!wasPending && isPending) {
+            await notifyPaymentPending(user, updateClient)
+        }
 
         return NextResponse.json(formatClient(updateClient))
 

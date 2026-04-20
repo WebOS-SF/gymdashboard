@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { requireUser } from "@/lib/auth"
 import { formatClient, normalizeClientStatus, normalizePaymentMethod, normalizeTurn, planPrices } from "@/lib/client-utils"
+import { getPersistedUserId, notifyPaymentPending, notifySuperadmins } from "@/lib/notifications"
 import { NextResponse } from "next/server"
 
 export async function GET() {
@@ -42,6 +43,8 @@ export async function POST(request: Request){
     const plan = String(body.plan || "Básico")
     const planPrice = Number(body.planPrice ?? planPrices[plan] ?? 0)
     const debt = Number(body.debt ?? 0)
+    const status = normalizeClientStatus(body.status)
+    const persistedUserId = await getPersistedUserId(user)
 
     const newClient = await prisma.client.create({
       data:{
@@ -53,9 +56,25 @@ export async function POST(request: Request){
         paymentMethod: normalizePaymentMethod(body.paymentMethod),
         turn: normalizeTurn(body.turn),
         debt: Number.isFinite(debt) ? debt : 0,
-        status: normalizeClientStatus(body.status),
+        status,
+        createdById: persistedUserId,
       }
     })
+
+    if (user.role === "admin") {
+      await notifySuperadmins({
+        actorId: user.id,
+        type: "client_created",
+        title: "Nuevo cliente registrado",
+        message: `${user.username} registró a ${newClient.nameComplete}.`,
+        entityType: "client",
+        entityId: newClient.dni,
+      })
+    }
+
+    if (status === "pending_payment" || newClient.debt > 0) {
+      await notifyPaymentPending(user, newClient)
+    }
 
     return NextResponse.json(formatClient(newClient))
   } catch (error) {

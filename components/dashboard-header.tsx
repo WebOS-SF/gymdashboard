@@ -1,10 +1,13 @@
 'use client'
 
+import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Dumbbell, LogOut, Sun, Moon, Search, Bell } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Separator } from '@/components/ui/separator'
+import { Dumbbell, LogOut, Sun, Moon, Bell } from 'lucide-react'
 import { useTheme } from '@/hooks/use-theme'
-import { AuthUser } from '@/lib/types'
+import { AppNotification, AuthUser } from '@/lib/types'
 
 interface DashboardHeaderProps {
   user: AuthUser
@@ -13,6 +16,54 @@ interface DashboardHeaderProps {
 
 export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
   const { theme, toggleTheme, mounted } = useTheme()
+  const [notifications, setNotifications] = useState<AppNotification[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  const fetchNotifications = useCallback(async () => {
+    const res = await fetch('/api/notifications')
+    if (!res.ok) return
+
+    const data = await res.json()
+    setNotifications(data.notifications || [])
+    setUnreadCount(data.unreadCount || 0)
+  }, [])
+
+  useEffect(() => {
+    fetchNotifications()
+    const interval = window.setInterval(fetchNotifications, 15000)
+
+    return () => window.clearInterval(interval)
+  }, [fetchNotifications])
+
+  const markNotificationsRead = async (id?: number) => {
+    await fetch('/api/notifications', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(typeof id === 'number' ? { id } : {}),
+    })
+
+    if (typeof id === 'number') {
+      setNotifications(prev =>
+        prev.map(notification =>
+          notification.id === id
+            ? { ...notification, readAt: notification.readAt || new Date().toISOString() }
+            : notification,
+        ),
+      )
+      setUnreadCount(prev => Math.max(prev - 1, 0))
+      return
+    }
+
+    const readAt = new Date().toISOString()
+    setNotifications(prev => prev.map(notification => ({ ...notification, readAt: notification.readAt || readAt })))
+    setUnreadCount(0)
+  }
+
+  const formatNotificationDate = (value: string) =>
+    new Intl.DateTimeFormat('es-PE', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    }).format(new Date(value))
 
   return (
     <header className="bg-card px-6 py-4 rounded-2xl mx-4 mt-4 shadow-sm">
@@ -27,17 +78,6 @@ export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
             <p className="text-xs text-muted-foreground">
               {user.username} · {user.role === 'superadmin' ? 'Superadmin' : 'Admin'}
             </p>
-          </div>
-        </div>
-
-        {/* Search */}
-        <div className="flex-1 max-w-md hidden md:block">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar..."
-              className="pl-11 h-11 rounded-xl bg-secondary/50 border-0 text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/20"
-            />
           </div>
         </div>
 
@@ -58,13 +98,75 @@ export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
               <span className="sr-only">Cambiar tema</span>
             </Button>
           )}
-          <Button 
-            variant="ghost" 
-            size="icon"
-            className="w-10 h-10 rounded-xl bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary"
-          >
-            <Bell className="h-5 w-5" />
-          </Button>
+          <Popover onOpenChange={(open) => open && fetchNotifications()}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative w-10 h-10 rounded-xl bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary"
+              >
+                <Bell className="h-5 w-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-[#FF6B6B] ring-2 ring-card" />
+                )}
+                <span className="sr-only">Ver notificaciones</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80 rounded-xl border-0 bg-card p-0 shadow-lg">
+              <div className="flex items-center justify-between gap-3 p-4">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Notificaciones</p>
+                  <p className="text-xs text-muted-foreground">
+                    {unreadCount > 0 ? `${unreadCount} sin leer` : 'Todo al día'}
+                  </p>
+                </div>
+                {unreadCount > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => markNotificationsRead()}
+                    className="h-8 rounded-lg px-2 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Marcar leídas
+                  </Button>
+                )}
+              </div>
+              <Separator />
+              <ScrollArea className="max-h-96">
+                <div className="p-2">
+                  {notifications.length > 0 ? (
+                    notifications.map((notification) => (
+                      <button
+                        key={notification.id}
+                        type="button"
+                        onClick={() => !notification.readAt && markNotificationsRead(notification.id)}
+                        className="w-full rounded-lg p-3 text-left transition-colors hover:bg-secondary/60"
+                      >
+                        <div className="flex items-start gap-3">
+                          <span
+                            className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
+                              notification.readAt ? 'bg-transparent' : 'bg-[#FF6B6B]'
+                            }`}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-foreground">{notification.title}</p>
+                            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{notification.message}</p>
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              {formatNotificationDate(notification.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="py-10 text-center text-sm text-muted-foreground">
+                      No hay notificaciones
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </PopoverContent>
+          </Popover>
           <Button 
             onClick={onLogout}
             className="h-10 px-4 rounded-xl bg-gradient-to-r from-primary to-primary/90 text-primary-foreground hover:opacity-90 shadow-lg shadow-primary/25"

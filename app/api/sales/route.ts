@@ -1,17 +1,25 @@
 import { prisma } from "@/lib/prisma";
-import { requireSuperadmin } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
+import { getPersistedUserId, notifySuperadmins } from "@/lib/notifications";
 import { NextResponse } from "next/server";
 
 const WALK_IN_CLIENT_DNI = 0
 
 export async function GET(){
-    const user = await requireSuperadmin()
-    if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 403 })
+    const user = await requireUser()
+    if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
     try {
         const sales = await prisma.salesRecord.findMany({
             include:{
-                client:true
+                client:true,
+                soldBy: {
+                  select: {
+                    id: true,
+                    username: true,
+                    role: true,
+                  },
+                },
             },
             orderBy:{
                 saleDate:'desc'
@@ -25,11 +33,12 @@ export async function GET(){
 }
 
 export async function POST(req: Request) {
-  const user = await requireSuperadmin()
-  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 403 })
+  const user = await requireUser()
+  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
   try {
     const body = await req.json();
+    const persistedUserId = await getPersistedUserId(user)
 
     const productId = Number(body.productId)
     const isWalkInClient = body.isWalkInClient === true
@@ -81,15 +90,27 @@ export async function POST(req: Request) {
           amount: product.price * quantity,
           saleDate: new Date(),
           clientDni,
+          soldById: persistedUserId,
         },
       })
 
-      return { sale, product: updatedProduct }
+      return { sale, product: updatedProduct, quantity }
     })
 
     if ("error" in result) {
       const status = result.error === "Product not found" ? 404 : 400
       return NextResponse.json({ error: result.error }, { status })
+    }
+
+    if (user.role === "admin") {
+      await notifySuperadmins({
+        actorId: user.id,
+        type: "sale_created",
+        title: "Nueva venta registrada",
+        message: `${user.username} vendió ${result.quantity} x ${result.sale.product} por S/ ${result.sale.amount.toLocaleString("es-PE")}.`,
+        entityType: "sale",
+        entityId: result.sale.id,
+      })
     }
 
     return NextResponse.json(result);
