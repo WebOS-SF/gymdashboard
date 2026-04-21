@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { requireUser } from "@/lib/auth"
-import { formatClient, normalizeClientStatus, normalizePaymentMethod, normalizeTurn, planPrices } from "@/lib/client-utils"
-import { getPersistedUserId, notifyPaymentPending, notifySuperadmins } from "@/lib/notifications"
+import { formatClient } from "@/lib/client-utils"
+import { getPersistedUserId, notifySuperadmins } from "@/lib/notifications"
 import { NextResponse } from "next/server"
 
 export async function GET() {
@@ -19,67 +19,88 @@ export async function GET() {
       include: {
         sales: true,
         boletas: true,
-        appointments: true
-      }
-    });
+        appointments: true,
+        plans: {
+          orderBy: {
+            startDate: "desc",
+          },
+        },
+      },
+    })
 
-    const formattedClients = clients.map(formatClient);
-
-    return NextResponse.json(formattedClients);
+    return NextResponse.json(clients.map(formatClient))
   } catch (error) {
     return NextResponse.json(
-      { error: 'Error al obtener los clientes' },
+      { error: "Error al obtener los clientes" },
       { status: 500 }
-    );
+    )
   }
 }
 
-export async function POST(request: Request){
+export async function POST(request: Request) {
   const user = await requireUser()
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
   try {
     const body = await request.json()
-    const plan = String(body.plan || "Básico")
-    const planPrice = Number(body.planPrice ?? planPrices[plan] ?? 0)
-    const debt = Number(body.debt ?? 0)
-    const status = normalizeClientStatus(body.status)
+    const dni = Number(body.dni)
+
+    if (!Number.isFinite(dni)) {
+      return NextResponse.json({ error: "DNI inválido" }, { status: 400 })
+    }
+
     const persistedUserId = await getPersistedUserId(user)
 
-    const newClient = await prisma.client.create({
-      data:{
-        dni: Number(body.dni),
-        nameComplete: body.name,
-        joinDate: body.joinDate ? new Date(body.joinDate) : new Date(),
-        fee: Number.isFinite(planPrice) ? planPrice : 0,
-        mode: plan,
-        paymentMethod: normalizePaymentMethod(body.paymentMethod),
-        turn: normalizeTurn(body.turn),
-        debt: Number.isFinite(debt) ? debt : 0,
-        status,
-        createdById: persistedUserId,
-      }
+    const existing = await prisma.client.findUnique({
+      where: { dni },
     })
+
+    if (existing) {
+      return NextResponse.json({ error: "Ya existe un cliente con ese DNI" }, { status: 409 })
+    }
+
+    const result = await prisma.client.create({
+      data: {
+        dni,
+        nameComplete: body.name,
+        phone: body.phone || null,
+        joinDate: new Date(),
+        fee: 0,
+        mode: "Sin plan",
+        paymentMethod: "Efectivo",
+        turn: "Mañana",
+        debt: 0,
+        status: "inactive",
+        createdById: persistedUserId,
+      },
+      include: {
+        plans: {
+          orderBy: {
+            startDate: "desc",
+          },
+        },
+      },
+    })
+
+    if (!result) {
+      return NextResponse.json({ error: "No se pudo registrar el cliente" }, { status: 500 })
+    }
 
     if (user.role === "admin") {
       await notifySuperadmins({
         actorId: user.id,
         type: "client_created",
-        title: "Nuevo cliente registrado",
-        message: `${user.username} registró a ${newClient.nameComplete}.`,
+        title: "Registro de cliente actualizado",
+        message: `${user.username} registró o renovó a ${result.nameComplete}.`,
         entityType: "client",
-        entityId: newClient.dni,
+        entityId: result.dni,
       })
     }
 
-    if (status === "pending_payment" || newClient.debt > 0) {
-      await notifyPaymentPending(user, newClient)
-    }
-
-    return NextResponse.json(formatClient(newClient))
+    return NextResponse.json(formatClient(result))
   } catch (error) {
     return NextResponse.json(
-      { error: 'Error al crear el cliente' },
+      { error: "Error al crear el cliente" },
       { status: 500 }
     )
   }

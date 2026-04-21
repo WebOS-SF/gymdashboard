@@ -12,7 +12,9 @@ interface StatsCardsProps {
 
 export function StatsCards({ clients, products, analytics }: StatsCardsProps) {
   const activeClients = clients?.filter(c => c.status === 'active').length || 0
-  const pendingPayments = clients?.filter(c => c.status === 'pending_payment').length || 0
+  const pendingPayments = clients?.filter(
+    c => c.status === 'pending_moderate' || c.status === 'pending_critical'
+  ).length || 0
   const totalStock = products?.reduce((acc, p) => acc + p.stock, 0) || 0
   const totalDebts = clients?.reduce((acc, c) => acc + ((c.debts || []).reduce((a, d) => a + d.amount, 0)), 0) || 0
   const monthlyIncome = clients?.reduce((acc, c) => acc + c.planPrice, 0) || 0
@@ -38,7 +40,7 @@ export function StatsCards({ clients, products, analytics }: StatsCardsProps) {
     {
       title: 'Membresías',
       value: `$${monthlyIncome.toLocaleString()}`,
-      subtitle: `vs $${previousMonthIncome.toLocaleString()} estimado`,
+      subtitle: `${pendingPayments} con cobranza pendiente`,
       icon: DollarSign,
       iconBg: 'bg-gradient-to-br from-[#5B8DEF] to-[#4a7de0]',
       trend: `${incomeChangePercent > 0 ? '+' : ''}${incomeChangePercent}%`,
