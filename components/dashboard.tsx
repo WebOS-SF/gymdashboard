@@ -121,34 +121,35 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
         )}
 
         {/* Toggle View */}
-        <div className="flex items-center gap-1 p-1 bg-card rounded-xl w-fit shadow-sm">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setViewMode('clients')}
-            className={`rounded-lg transition-all ${
-              viewMode === 'clients' 
-                ? 'bg-primary text-primary-foreground shadow-md' 
-                : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
-            }`}
-          >
-            <Users className="h-4 w-4 mr-2" />
-            Clientes
-          </Button>
+        <div className="w-full overflow-x-auto">
+          <div className="flex items-center gap-1 p-1 bg-card rounded-xl w-max min-w-full shadow-sm">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setViewMode('clients')}
+              className={`shrink-0 whitespace-nowrap rounded-lg transition-all ${
+                viewMode === 'clients' 
+                  ? 'bg-primary text-primary-foreground shadow-md' 
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+              }`}
+            >
+              <Users className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Clientes</span>
+            </Button>
           {isSuperadmin && (
             <>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setViewMode('products')}
-                className={`rounded-lg transition-all ${
+                className={`shrink-0 whitespace-nowrap rounded-lg transition-all ${
                   viewMode === 'products' 
                     ? 'bg-primary text-primary-foreground shadow-md' 
                     : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
                 }`}
               >
-                <Package className="h-4 w-4 mr-2" />
-                Productos
+                <Package className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Productos</span>
               </Button>
             </>
           )}
@@ -156,27 +157,27 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
             variant="ghost"
             size="sm"
             onClick={() => setViewMode('plans')}
-            className={`rounded-lg transition-all ${
+            className={`shrink-0 whitespace-nowrap rounded-lg transition-all ${
               viewMode === 'plans'
                 ? 'bg-primary text-primary-foreground shadow-md'
                 : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
             }`}
           >
-            <CalendarRange className="h-4 w-4 mr-2" />
-            Planes
+            <CalendarRange className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Planes</span>
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setViewMode('sales')}
-            className={`rounded-lg transition-all ${
+            className={`shrink-0 whitespace-nowrap rounded-lg transition-all ${
               viewMode === 'sales'
                 ? 'bg-primary text-primary-foreground shadow-md'
                 : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
             }`}
           >
-            <ShoppingCart className="h-4 w-4 mr-2" />
-            Ventas
+            <ShoppingCart className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Ventas</span>
           </Button>
           {isSuperadmin && (
             <>
@@ -184,17 +185,18 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
                 variant="ghost"
                 size="sm"
                 onClick={() => setViewMode('admins')}
-                className={`rounded-lg transition-all ${
+                className={`shrink-0 whitespace-nowrap rounded-lg transition-all ${
                   viewMode === 'admins'
                     ? 'bg-primary text-primary-foreground shadow-md'
                     : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
                 }`}
               >
-                <Shield className="h-4 w-4 mr-2" />
-                Admins
+                <Shield className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Admins</span>
               </Button>
             </>
           )}
+          </div>
         </div>
 
         {/* List View */}
