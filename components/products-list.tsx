@@ -20,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ButtonSpinner } from "@/components/ui/button-spinner";
 import { Search, Plus, Edit2, Package, X, Check, Filter } from "lucide-react";
 import { Product, Client } from "@/lib/types";
 import {
@@ -29,6 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 interface ProductsListProps {
   products: Product[];
@@ -65,7 +67,7 @@ export function ProductsList({
   onSaleRecorded,
 }: ProductsListProps) {
   const [searchTerm, setSearchTerm] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<Product | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [isSelling, setIsSelling] = useState(false);
@@ -74,6 +76,9 @@ export function ProductsList({
   const [saleClientSearch, setSaleClientSearch] = useState("");
   const [isWalkInClient, setIsWalkInClient] = useState(false);
   const [saleQty, setSaleQty] = useState(1);
+  const [isCreatingProduct, setIsCreatingProduct] = useState(false);
+  const [isUpdatingProduct, setIsUpdatingProduct] = useState(false);
+  const [isSubmittingSale, setIsSubmittingSale] = useState(false);
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     name: "",
     price: 0,
@@ -111,11 +116,39 @@ export function ProductsList({
     setEditForm({ ...product });
   };
 
-  const handleSaveEdit = () => {
-    if (editForm) {
-      onUpdateProduct(editForm);
+  const handleSaveEdit = async () => {
+    if (!editForm || isUpdatingProduct) return;
+
+    setIsUpdatingProduct(true);
+
+    try {
+      const res = await fetch("/api/product", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(editForm),
+      });
+      const payload = await res.json();
+
+      if (!res.ok) {
+        throw new Error(payload?.error || "No se pudo actualizar el producto");
+      }
+
+      onUpdateProduct(payload);
       setEditingId(null);
       setEditForm(null);
+      toast.success("Producto actualizado", {
+        description: "Los cambios quedaron guardados.",
+      });
+    } catch (error) {
+      console.error("Error actualizando producto:", error);
+      toast.error("No se pudo actualizar el producto", {
+        description:
+          error instanceof Error ? error.message : "Inténtalo nuevamente.",
+      });
+    } finally {
+      setIsUpdatingProduct(false);
     }
   };
 
@@ -134,9 +167,10 @@ export function ProductsList({
   };
 
   const handleConfirmSell = async () => {
-    if (!sellingProduct) return;
+    if (!sellingProduct || isSubmittingSale) return;
     if (!isWalkInClient && !saleClientDni) return;
 
+    setIsSubmittingSale(true);
     try {
       const res = await fetch("/api/sales", {
         method: "POST",
@@ -165,13 +199,28 @@ export function ProductsList({
       setSaleClientSearch("");
       setIsWalkInClient(false);
       onSaleRecorded();
+      toast.success("Venta registrada", {
+        description: "El stock y la venta se actualizaron correctamente.",
+      });
     } catch (error) {
       console.error("Error registrando venta:", error);
+      toast.error("No se pudo registrar la venta", {
+        description:
+          error instanceof Error ? error.message : "Inténtalo nuevamente.",
+      });
+    } finally {
+      setIsSubmittingSale(false);
     }
   };
 
   const handleAddProduct = async () => {
-    if (newProduct.name && newProduct.price && newProduct.stock !== undefined) {
+    if (
+      !isCreatingProduct &&
+      newProduct.name &&
+      newProduct.price &&
+      newProduct.stock !== undefined
+    ) {
+      setIsCreatingProduct(true);
       try {
         const res = await fetch("/api/product", {
           method: "POST",
@@ -183,7 +232,10 @@ export function ProductsList({
 
         const createdProduct = await res.json();
 
-        // 🔥 esto actualiza la UI
+        if (!res.ok) {
+          throw new Error(createdProduct?.error || "No se pudo crear el producto");
+        }
+
         onAddProduct(createdProduct);
 
         setNewProduct({
@@ -194,8 +246,17 @@ export function ProductsList({
         });
 
         setIsAdding(false);
+        toast.success("Producto creado", {
+          description: "El nuevo producto ya aparece en la lista.",
+        });
       } catch (error) {
         console.error("Error creando producto:", error);
+        toast.error("No se pudo crear el producto", {
+          description:
+            error instanceof Error ? error.message : "Inténtalo nuevamente.",
+        });
+      } finally {
+        setIsCreatingProduct(false);
       }
     }
   };
@@ -351,14 +412,20 @@ export function ProductsList({
                         variant="ghost"
                         size="icon"
                         onClick={handleAddProduct}
+                        disabled={isCreatingProduct}
                         className="h-8 w-8 rounded-lg text-[#26DE81] hover:text-[#26DE81] hover:bg-[#26DE81]/10"
                       >
-                        <Check className="h-4 w-4" />
+                        {isCreatingProduct ? (
+                          <ButtonSpinner />
+                        ) : (
+                          <Check className="h-4 w-4" />
+                        )}
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => setIsAdding(false)}
+                        disabled={isCreatingProduct}
                         className="h-8 w-8 rounded-lg text-muted-foreground hover:text-[#FF6B6B] hover:bg-[#FF6B6B]/10"
                       >
                         <X className="h-4 w-4" />
@@ -430,14 +497,20 @@ export function ProductsList({
                             variant="ghost"
                             size="icon"
                             onClick={handleSaveEdit}
+                            disabled={isUpdatingProduct}
                             className="h-8 w-8 rounded-lg text-[#26DE81] hover:text-[#26DE81] hover:bg-[#26DE81]/10"
                           >
-                            <Check className="h-4 w-4" />
+                            {isUpdatingProduct ? (
+                              <ButtonSpinner />
+                            ) : (
+                              <Check className="h-4 w-4" />
+                            )}
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={handleCancelEdit}
+                            disabled={isUpdatingProduct}
                             className="h-8 w-8 rounded-lg text-muted-foreground hover:text-[#FF6B6B] hover:bg-[#FF6B6B]/10"
                           >
                             <X className="h-4 w-4" />
@@ -601,18 +674,21 @@ export function ProductsList({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsSelling(false)}>
+            <Button variant="outline" onClick={() => setIsSelling(false)} disabled={isSubmittingSale}>
               Cancelar
             </Button>
             <Button
               onClick={handleConfirmSell}
               disabled={
+                isSubmittingSale ||
                 !sellingProduct ||
                 (!isWalkInClient && !saleClientDni) ||
-                saleQty <= 0
+                saleQty <= 0 ||
+                saleQty > (sellingProduct?.stock || 0)
               }
             >
-              Confirmar
+              {isSubmittingSale && <ButtonSpinner />}
+              {isSubmittingSale ? "Registrando..." : "Confirmar"}
             </Button>
           </DialogFooter>
         </DialogContent>

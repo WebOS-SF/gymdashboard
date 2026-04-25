@@ -28,7 +28,7 @@ export interface AdminAccount {
 }
 
 export interface Product {
-  id: string
+  id: number
   name: string
   price: number
   stock: number
@@ -77,7 +77,7 @@ export interface ClientDebt {
 }
 
 export interface ClientPlan {
-  id: string
+  id: number
   planTier: PlanTier
   name: string
   startDate: string

@@ -27,8 +27,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ButtonSpinner } from "@/components/ui/button-spinner";
 import { Client, Product, ProductSale } from "@/lib/types";
 import { Check, Package, Search, ShoppingCart } from "lucide-react";
+import { toast } from "sonner";
 
 interface SalesListProps {
   products: Product[];
@@ -77,6 +79,7 @@ export function SalesList({
   const [saleClientSearch, setSaleClientSearch] = useState("");
   const [isWalkInClient, setIsWalkInClient] = useState(false);
   const [saleQty, setSaleQty] = useState(1);
+  const [isSubmittingSale, setIsSubmittingSale] = useState(false);
 
   const filteredProducts = products.filter((product) => {
     const term = normalizeSearchValue(productSearch);
@@ -115,9 +118,10 @@ export function SalesList({
   };
 
   const handleConfirmSell = async () => {
-    if (!sellingProduct) return;
+    if (!sellingProduct || isSubmittingSale) return;
     if (!isWalkInClient && !saleClientDni) return;
 
+    setIsSubmittingSale(true);
     try {
       const res = await fetch("/api/sales", {
         method: "POST",
@@ -146,8 +150,17 @@ export function SalesList({
       setSaleClientSearch("");
       setIsWalkInClient(false);
       onSaleRecorded();
+      toast.success("Venta registrada", {
+        description: "El stock y la venta se actualizaron correctamente.",
+      });
     } catch (error) {
       console.error("Error registrando venta:", error);
+      toast.error("No se pudo registrar la venta", {
+        description:
+          error instanceof Error ? error.message : "Inténtalo nuevamente.",
+      });
+    } finally {
+      setIsSubmittingSale(false);
     }
   };
 
@@ -401,19 +414,21 @@ export function SalesList({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsSelling(false)}>
+            <Button variant="outline" onClick={() => setIsSelling(false)} disabled={isSubmittingSale}>
               Cancelar
             </Button>
             <Button
               onClick={handleConfirmSell}
               disabled={
+                isSubmittingSale ||
                 !sellingProduct ||
                 (!isWalkInClient && !saleClientDni) ||
                 saleQty <= 0 ||
                 saleQty > (sellingProduct?.stock || 0)
               }
             >
-              Confirmar
+              {isSubmittingSale && <ButtonSpinner />}
+              {isSubmittingSale ? "Registrando..." : "Confirmar"}
             </Button>
           </DialogFooter>
         </DialogContent>

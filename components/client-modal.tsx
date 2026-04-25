@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { ButtonSpinner } from '@/components/ui/button-spinner'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { FieldGroup, Field, FieldLabel } from '@/components/ui/field'
@@ -11,8 +12,9 @@ import { Client } from '@/lib/types'
 interface ClientModalProps {
   client: Client | null
   isOpen: boolean
+  isSaving: boolean
   onClose: () => void
-  onSave: (client: Record<string, unknown>) => void
+  onSave: (client: Record<string, unknown>) => Promise<void>
 }
 
 interface ClientFormState {
@@ -31,16 +33,17 @@ function buildInitialState(client: Client | null): ClientFormState {
   }
 }
 
-export function ClientModal({ client, isOpen, onClose, onSave }: ClientModalProps) {
+export function ClientModal({ client, isOpen, isSaving, onClose, onSave }: ClientModalProps) {
   const [formData, setFormData] = useState<ClientFormState>(buildInitialState(client))
 
   useEffect(() => {
     setFormData(buildInitialState(client))
   }, [client, isOpen])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    onSave({ ...formData })
+    if (isSaving) return
+    await onSave({ ...formData })
   }
 
   if (!isOpen) return null
@@ -57,7 +60,7 @@ export function ClientModal({ client, isOpen, onClose, onSave }: ClientModalProp
               Aquí solo se editan los datos personales del cliente.
             </CardDescription>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <Button variant="ghost" size="icon" onClick={onClose} disabled={isSaving} className="text-muted-foreground hover:text-foreground">
             <X className="h-4 w-4" />
           </Button>
         </CardHeader>
@@ -99,11 +102,12 @@ export function ClientModal({ client, isOpen, onClose, onSave }: ClientModalProp
             </FieldGroup>
 
             <div className="flex justify-end gap-3">
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
                 Cancelar
               </Button>
-              <Button type="submit">
-                Guardar Cliente
+              <Button type="submit" disabled={isSaving}>
+                {isSaving && <ButtonSpinner />}
+                {client ? 'Guardar Cliente' : 'Crear Cliente'}
               </Button>
             </div>
           </form>

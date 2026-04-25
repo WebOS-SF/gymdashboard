@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Search, Plus, Edit2, Users, Filter } from 'lucide-react'
 import { Client } from '@/lib/types'
 import { ClientModal } from './client-modal'
+import { toast } from 'sonner'
 
 interface ClientsListProps {
   clients: Client[]
@@ -20,6 +21,7 @@ export function ClientsList({ clients, onUpdateClient, onAddClient }: ClientsLis
   const [searchDni, setSearchDni] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
 
   const filteredClients = clients.filter((client) => {
     const dni = String(client.dni || '')
@@ -40,6 +42,9 @@ export function ClientsList({ clients, onUpdateClient, onAddClient }: ClientsLis
   }
 
   const handleSave = async (client: Record<string, unknown>) => {
+    if (isSaving) return
+
+    setIsSaving(true)
     try {
       const dni = String(client.dni || '')
       const res = await fetch(editingClient ? `/api/clients/${dni}` : '/api/clients', {
@@ -68,8 +73,18 @@ export function ClientsList({ clients, onUpdateClient, onAddClient }: ClientsLis
       }
 
       setIsModalOpen(false)
+      toast.success(editingClient ? 'Cliente actualizado' : 'Cliente registrado', {
+        description: editingClient
+          ? 'Los datos del cliente quedaron guardados.'
+          : 'El nuevo cliente ya aparece en el dashboard.',
+      })
     } catch (error) {
       console.error('Error guardando cliente:', error)
+      toast.error('No se pudo guardar el cliente', {
+        description: error instanceof Error ? error.message : 'Inténtalo nuevamente.',
+      })
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -191,6 +206,7 @@ export function ClientsList({ clients, onUpdateClient, onAddClient }: ClientsLis
       <ClientModal
         client={editingClient}
         isOpen={isModalOpen}
+        isSaving={isSaving}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
       />

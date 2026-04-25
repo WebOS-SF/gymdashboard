@@ -8,6 +8,7 @@ import { FieldGroup, Field, FieldLabel } from '@/components/ui/field'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
+import { ButtonSpinner } from '@/components/ui/button-spinner'
 import { X } from 'lucide-react'
 import { Client, ClientPlan, DurationUnit, PlanTier, Weekday } from '@/lib/types'
 import {
@@ -30,12 +31,13 @@ interface PlanModalProps {
   plan: ClientPlan | null
   canViewMoney: boolean
   isOpen: boolean
+  isSaving: boolean
   onClose: () => void
-  onSave: (plan: Record<string, unknown>) => void
+  onSave: (plan: Record<string, unknown>) => Promise<void>
 }
 
 interface PlanFormState {
-  id?: string
+  id?: number
   clientDni: string
   planTier: PlanTier
   joinDate: string
@@ -50,6 +52,25 @@ interface PlanFormState {
 
 const defaultAttendanceDays: Weekday[] = [...weekdayOrder]
 const alternateAttendanceDays: Weekday[] = ['monday', 'wednesday', 'friday']
+
+const normalizeSearchValue = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+
+const getClientMatchScore = (client: Client, term: string) => {
+  const name = normalizeSearchValue(client.name || '')
+  const dni = String(client.dni || '')
+
+  if (!term) return 0
+  if (dni === term || name === term) return 100
+  if (dni.startsWith(term) || name.startsWith(term)) return 80
+  if (dni.includes(term) || name.includes(term)) return 60
+
+  return name.split(/\s+/).some((word) => word.startsWith(term)) ? 50 : 0
+}
 
 function inferPreset(days: Weekday[]): AttendancePreset {
   if (days.length === weekdayOrder.length) return 'daily'
@@ -94,7 +115,7 @@ function paymentSummaryLabel(amountPaid: number, totalPrice: number) {
   return 'Sin pago'
 }
 
-export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, onClose, onSave }: PlanModalProps) {
+export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, isSaving, onClose, onSave }: PlanModalProps) {
   const [formData, setFormData] = useState<PlanFormState>(buildInitialState(mode, client, plan))
 
   useEffect(() => {
@@ -102,6 +123,24 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, o
   }, [mode, client, plan, isOpen])
 
   const selectedClient = clients.find((item) => item.dni === formData.clientDni) || client
+  const clientSuggestions = useMemo(() => {
+    const term = normalizeSearchValue(formData.clientDni)
+
+    if (!term || mode === 'edit') return []
+
+    return clients
+      .map((item) => ({
+        client: item,
+        score: getClientMatchScore(item, term),
+      }))
+      .filter(({ score }) => score > 0)
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score
+        return (a.client.name || '').localeCompare(b.client.name || '')
+      })
+      .slice(0, 5)
+      .map(({ client }) => client)
+  }, [clients, formData.clientDni, mode])
   const hasPlanInputs = Boolean(
     formData.clientDni &&
     formData.joinDate &&
@@ -153,11 +192,11 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, o
     })
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!planPreview) return
+    if (!planPreview || isSaving) return
 
-    onSave({
+    await onSave({
       id: formData.id,
       clientDni: formData.clientDni,
       planTier: formData.planTier,
@@ -196,7 +235,7 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, o
             <CardTitle className="text-foreground">{title}</CardTitle>
             <CardDescription className="text-muted-foreground">{description}</CardDescription>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <Button variant="ghost" size="icon" onClick={onClose} disabled={isSaving} className="text-muted-foreground hover:text-foreground">
             <X className="h-4 w-4" />
           </Button>
         </CardHeader>
@@ -206,14 +245,46 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, o
               <div className="grid gap-4 md:grid-cols-2">
                 <Field>
                   <FieldLabel htmlFor="plan-client-dni">DNI del Cliente</FieldLabel>
-                  <Input
-                    id="plan-client-dni"
-                    value={formData.clientDni}
-                    onChange={(e) => setFormData({ ...formData, clientDni: e.target.value })}
-                    className="bg-input border-border text-foreground"
-                    required
-                    disabled={mode === 'edit'}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="plan-client-dni"
+                      value={formData.clientDni}
+                      onChange={(e) => setFormData({ ...formData, clientDni: e.target.value })}
+                      className="bg-input border-border text-foreground"
+                      required
+                      disabled={mode === 'edit'}
+                    />
+                    {clientSuggestions.length > 0 && !selectedClient && (
+                      <div className="absolute left-0 right-0 top-[calc(100%+0.45rem)] z-50 overflow-hidden rounded-xl border border-border/80 bg-popover shadow-xl">
+                        {clientSuggestions.map((suggestedClient) => (
+                          <button
+                            key={suggestedClient.id}
+                            type="button"
+                            onClick={() =>
+                              setFormData((current) => ({
+                                ...current,
+                                clientDni: suggestedClient.dni,
+                                planTier: suggestedClient.planTier || current.planTier,
+                              }))
+                            }
+                            className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-secondary focus:bg-secondary focus:outline-none"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium text-foreground">
+                                {suggestedClient.name || 'Sin nombre'}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                DNI {suggestedClient.dni}
+                              </p>
+                            </div>
+                            <span className="shrink-0 text-[11px] text-muted-foreground">
+                              {suggestedClient.plan || 'Sin plan'}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </Field>
                 <Field>
                   <FieldLabel>Cliente</FieldLabel>
@@ -412,11 +483,12 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, o
             </div>
 
             <div className="flex justify-end gap-3">
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={!planPreview || !selectedClient}>
-                {mode === 'edit' ? 'Guardar Cambios del Plan' : 'Guardar Plan'}
+              <Button type="submit" disabled={!planPreview || !selectedClient || isSaving}>
+                {isSaving && <ButtonSpinner />}
+                {mode === 'edit' ? 'Guardar Plan' : 'Crear Plan'}
               </Button>
             </div>
           </form>

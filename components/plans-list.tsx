@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Search, Plus, Edit2, CalendarRange } from 'lucide-react'
 import { Client, ClientPlan } from '@/lib/types'
 import { PlanModal } from './plan-modal'
+import { toast } from 'sonner'
 
 interface FlattenedPlan extends ClientPlan {
   clientDni: string
@@ -27,6 +28,7 @@ export function PlansList({ clients, canViewMoney, onClientsChange }: PlansListP
   const [modalMode, setModalMode] = useState<'create' | 'renew' | 'edit'>('create')
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [selectedPlan, setSelectedPlan] = useState<FlattenedPlan | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
 
   const plans = useMemo<FlattenedPlan[]>(() => {
     return clients.flatMap((client) =>
@@ -78,6 +80,9 @@ export function PlansList({ clients, canViewMoney, onClientsChange }: PlansListP
   }
 
   const handleSave = async (payload: Record<string, unknown>) => {
+    if (isSaving) return
+
+    setIsSaving(true)
     try {
       const endpoint = modalMode === 'edit' ? `/api/client-plans/${payload.id}` : '/api/client-plans'
       const method = modalMode === 'edit' ? 'PUT' : 'POST'
@@ -96,8 +101,22 @@ export function PlansList({ clients, canViewMoney, onClientsChange }: PlansListP
 
       replaceClient(data)
       setIsModalOpen(false)
+      toast.success(
+        modalMode === 'edit' ? 'Plan actualizado' : modalMode === 'renew' ? 'Plan renovado' : 'Plan creado',
+        {
+          description:
+            modalMode === 'edit'
+              ? 'Los cambios del plan quedaron guardados.'
+              : 'El plan ya quedó registrado para el cliente.',
+        }
+      )
     } catch (error) {
       console.error('Error guardando plan:', error)
+      toast.error('No se pudo guardar el plan', {
+        description: error instanceof Error ? error.message : 'Inténtalo nuevamente.',
+      })
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -239,6 +258,7 @@ export function PlansList({ clients, canViewMoney, onClientsChange }: PlansListP
         plan={selectedPlan}
         canViewMoney={canViewMoney}
         isOpen={isModalOpen}
+        isSaving={isSaving}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
       />

@@ -53,3 +53,34 @@ export async function POST(req: Request){
         );
     }
 }
+
+export async function PUT(req: Request) {
+    const user = await requireSuperadmin()
+    if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 403 })
+
+    try {
+        const body = await req.json();
+        const productId = Number(body.id)
+
+        if (!Number.isFinite(productId)) {
+            return NextResponse.json({ error: "ID de producto inválido" }, { status: 400 })
+        }
+
+        const product = await prisma.product.update({
+            where: { id: productId },
+            data: {
+                name: body.name,
+                price: Number(body.price),
+                stock: Number(body.stock),
+                category: body.category,
+            },
+        })
+
+        return NextResponse.json(product)
+    } catch (error) {
+        return NextResponse.json(
+            { error: "Error updating product" },
+            { status: 500 }
+        );
+    }
+}

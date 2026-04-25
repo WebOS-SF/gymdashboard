@@ -6,8 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { ButtonSpinner } from '@/components/ui/button-spinner'
 import { AdminAccount } from '@/lib/types'
 import { Check, KeyRound, Trash2, UserPlus, X } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface AdminAccountsProps {
   currentUserId: number
@@ -20,6 +22,9 @@ export function AdminAccounts({ currentUserId }: AdminAccountsProps) {
   const [editingPasswordId, setEditingPasswordId] = useState<number | null>(null)
   const [newPassword, setNewPassword] = useState('')
   const [error, setError] = useState('')
+  const [isCreating, setIsCreating] = useState(false)
+  const [savingPasswordId, setSavingPasswordId] = useState<number | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   const fetchAccounts = async () => {
     const res = await fetch('/api/admins')
@@ -33,54 +38,99 @@ export function AdminAccounts({ currentUserId }: AdminAccountsProps) {
   }, [])
 
   const handleCreate = async () => {
+    if (isCreating) return
+
+    setIsCreating(true)
     setError('')
-    const res = await fetch('/api/admins', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    })
-    const data = await res.json()
+    try {
+      const res = await fetch('/api/admins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      })
+      const data = await res.json()
 
-    if (!res.ok) {
-      setError(data?.error || 'No se pudo crear la cuenta')
-      return
+      if (!res.ok) {
+        const message = data?.error || 'No se pudo crear la cuenta'
+        setError(message)
+        throw new Error(message)
+      }
+
+      setAccounts((prev) => [data, ...prev])
+      setUsername('')
+      setPassword('')
+      toast.success('Admin creado', {
+        description: 'La cuenta nueva ya está disponible.',
+      })
+    } catch (error) {
+      toast.error('No se pudo crear la cuenta', {
+        description: error instanceof Error ? error.message : 'Inténtalo nuevamente.',
+      })
+    } finally {
+      setIsCreating(false)
     }
-
-    setAccounts((prev) => [data, ...prev])
-    setUsername('')
-    setPassword('')
   }
 
   const handleChangePassword = async (id: number) => {
+    if (savingPasswordId === id) return
+
+    setSavingPasswordId(id)
     setError('')
-    const res = await fetch(`/api/admins/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: newPassword }),
-    })
-    const data = await res.json()
+    try {
+      const res = await fetch(`/api/admins/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPassword }),
+      })
+      const data = await res.json()
 
-    if (!res.ok) {
-      setError(data?.error || 'No se pudo cambiar la contraseña')
-      return
+      if (!res.ok) {
+        const message = data?.error || 'No se pudo cambiar la contraseña'
+        setError(message)
+        throw new Error(message)
+      }
+
+      setAccounts((prev) => prev.map((account) => (account.id === id ? data : account)))
+      setEditingPasswordId(null)
+      setNewPassword('')
+      toast.success('Contraseña actualizada', {
+        description: 'La nueva contraseña quedó guardada.',
+      })
+    } catch (error) {
+      toast.error('No se pudo cambiar la contraseña', {
+        description: error instanceof Error ? error.message : 'Inténtalo nuevamente.',
+      })
+    } finally {
+      setSavingPasswordId(null)
     }
-
-    setAccounts((prev) => prev.map((account) => (account.id === id ? data : account)))
-    setEditingPasswordId(null)
-    setNewPassword('')
   }
 
   const handleDelete = async (id: number) => {
+    if (deletingId === id) return
+
+    setDeletingId(id)
     setError('')
-    const res = await fetch(`/api/admins/${id}`, { method: 'DELETE' })
-    const data = await res.json().catch(() => ({}))
+    try {
+      const res = await fetch(`/api/admins/${id}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
 
-    if (!res.ok) {
-      setError(data?.error || 'No se pudo eliminar la cuenta')
-      return
+      if (!res.ok) {
+        const message = data?.error || 'No se pudo eliminar la cuenta'
+        setError(message)
+        throw new Error(message)
+      }
+
+      setAccounts((prev) => prev.filter((account) => account.id !== id))
+      toast.success('Admin eliminado', {
+        description: 'La cuenta fue eliminada correctamente.',
+      })
+    } catch (error) {
+      toast.error('No se pudo eliminar la cuenta', {
+        description: error instanceof Error ? error.message : 'Inténtalo nuevamente.',
+      })
+    } finally {
+      setDeletingId(null)
     }
-
-    setAccounts((prev) => prev.filter((account) => account.id !== id))
   }
 
   return (
@@ -107,8 +157,8 @@ export function AdminAccounts({ currentUserId }: AdminAccountsProps) {
               type="password"
               className="h-10 rounded-xl bg-secondary/50 border-0"
             />
-            <Button onClick={handleCreate} disabled={!username || !password} className="h-10 rounded-xl">
-              <UserPlus className="h-4 w-4 mr-2" />
+            <Button onClick={handleCreate} disabled={!username || !password || isCreating} className="h-10 rounded-xl">
+              {isCreating ? <ButtonSpinner /> : <UserPlus className="h-4 w-4 mr-2" />}
               Crear Admin
             </Button>
           </div>
@@ -162,10 +212,10 @@ export function AdminAccounts({ currentUserId }: AdminAccountsProps) {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleChangePassword(account.id)}
-                          disabled={!newPassword}
+                          disabled={!newPassword || savingPasswordId === account.id}
                           className="h-8 w-8 rounded-lg text-[#26DE81] hover:text-[#26DE81] hover:bg-[#26DE81]/10"
                         >
-                          <Check className="h-4 w-4" />
+                          {savingPasswordId === account.id ? <ButtonSpinner /> : <Check className="h-4 w-4" />}
                         </Button>
                         <Button
                           variant="ghost"
@@ -174,6 +224,7 @@ export function AdminAccounts({ currentUserId }: AdminAccountsProps) {
                             setEditingPasswordId(null)
                             setNewPassword('')
                           }}
+                          disabled={savingPasswordId === account.id}
                           className="h-8 w-8 rounded-lg text-muted-foreground hover:text-[#FF6B6B] hover:bg-[#FF6B6B]/10"
                         >
                           <X className="h-4 w-4" />
@@ -193,10 +244,10 @@ export function AdminAccounts({ currentUserId }: AdminAccountsProps) {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleDelete(account.id)}
-                          disabled={account.id === currentUserId || account.role === 'superadmin'}
+                          disabled={account.id === currentUserId || account.role === 'superadmin' || deletingId === account.id}
                           className="h-8 w-8 rounded-lg text-muted-foreground hover:text-[#FF6B6B] hover:bg-[#FF6B6B]/10 disabled:opacity-40"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          {deletingId === account.id ? <ButtonSpinner /> : <Trash2 className="h-4 w-4" />}
                         </Button>
                       </>
                     )}
