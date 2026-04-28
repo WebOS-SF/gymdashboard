@@ -9,6 +9,9 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
   try {
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
+
     const clients = await prisma.client.findMany({
       where: {
         dni: { not: 0 },
@@ -23,6 +26,11 @@ export async function GET() {
         plans: {
           orderBy: {
             startDate: "desc",
+          },
+        },
+        attendances: {
+          where: {
+            date: todayStart,
           },
         },
       },

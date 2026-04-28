@@ -6,22 +6,25 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Search, Plus, Edit2, Users, Filter } from 'lucide-react'
-import { Client } from '@/lib/types'
+import { Search, Plus, Edit2, Users, Filter, CheckCircle2, XCircle, CircleDot, CalendarDays } from 'lucide-react'
+import { Client, AttendanceStatus } from '@/lib/types'
 import { ClientModal } from './client-modal'
+import { AttendanceCalendarModal } from './attendance-calendar-modal'
 import { toast } from 'sonner'
 
 interface ClientsListProps {
   clients: Client[]
   onUpdateClient: (client: Client) => void
   onAddClient: (client: Client) => void
+  onAttendanceChange: (dni: string, status: AttendanceStatus) => void
 }
 
-export function ClientsList({ clients, onUpdateClient, onAddClient }: ClientsListProps) {
+export function ClientsList({ clients, onUpdateClient, onAddClient, onAttendanceChange }: ClientsListProps) {
   const [searchDni, setSearchDni] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [calendarClient, setCalendarClient] = useState<Client | null>(null)
 
   const filteredClients = clients.filter((client) => {
     const dni = String(client.dni || '')
@@ -86,6 +89,42 @@ export function ClientsList({ clients, onUpdateClient, onAddClient }: ClientsLis
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const handleAttendance = async (client: Client) => {
+    const nextStatus: AttendanceStatus =
+      client.todayAttendance === 'NONE' ? 'PRESENT' :
+      client.todayAttendance === 'PRESENT' ? 'ABSENT' : 'PRESENT'
+
+    try {
+      const res = await fetch('/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientDni: Number(client.dni), status: nextStatus }),
+      })
+      if (!res.ok) throw new Error('Error')
+      onAttendanceChange(client.dni, nextStatus)
+      toast.success('Asistencia registrada', {
+        description: nextStatus === 'PRESENT' 
+          ? `${client.name} vino hoy` 
+          : `${client.name} marcado como ausente`,
+      })
+    } catch (error) {
+      console.error('Error registrando asistencia:', error)
+      toast.error('No se pudo registrar la asistencia', {
+        description: 'Inténtalo nuevamente.',
+      })
+    }
+  }
+
+  const getAttendanceIcon = (status: AttendanceStatus) => {
+    if (status === 'PRESENT') {
+      return <CheckCircle2 className="h-5 w-5 text-[#26DE81]" />
+    }
+    if (status === 'ABSENT') {
+      return <XCircle className="h-5 w-5 text-[#FF6B6B]" />
+    }
+    return <CircleDot className="h-5 w-5 text-muted-foreground" />
   }
 
   const getStatusBadge = (client: Client) => {
@@ -154,6 +193,7 @@ export function ClientsList({ clients, onUpdateClient, onAddClient }: ClientsLis
                   <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider hidden lg:table-cell">Teléfono</TableHead>
                   <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider hidden xl:table-cell">Cliente Desde</TableHead>
                   <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider">Estado</TableHead>
+                  <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider text-center">Hoy</TableHead>
                   <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -178,7 +218,30 @@ export function ClientsList({ clients, onUpdateClient, onAddClient }: ClientsLis
                     <TableCell className="hidden lg:table-cell text-muted-foreground">{client.phone || '-'}</TableCell>
                     <TableCell className="hidden xl:table-cell text-muted-foreground">{client.memberSince || client.joinDate}</TableCell>
                     <TableCell>{getStatusBadge(client)}</TableCell>
+                    <TableCell className="text-center">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleAttendance(client)}
+                        className="h-8 w-8 rounded-lg hover:bg-secondary"
+                        title={
+                          client.todayAttendance === 'PRESENT' ? 'Presente' :
+                          client.todayAttendance === 'ABSENT' ? 'Ausente' : 'Sin registro'
+                        }
+                      >
+                        {getAttendanceIcon(client.todayAttendance)}
+                      </Button>
+                    </TableCell>
                     <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setCalendarClient(client)}
+                        className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary"
+                        title="Ver calendario"
+                      >
+                        <CalendarDays className="h-4 w-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -209,6 +272,13 @@ export function ClientsList({ clients, onUpdateClient, onAddClient }: ClientsLis
         isSaving={isSaving}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
+      />
+
+      <AttendanceCalendarModal
+        clientDni={calendarClient?.dni || ''}
+        clientName={calendarClient?.name || ''}
+        isOpen={Boolean(calendarClient)}
+        onClose={() => setCalendarClient(null)}
       />
     </>
   )

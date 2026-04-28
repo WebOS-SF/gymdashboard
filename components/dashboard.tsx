@@ -10,7 +10,7 @@ import { PlansList } from './plans-list'
 import { ProductsList } from './products-list'
 import { AdminAccounts } from './admin-accounts'
 import { SalesList } from './sales-list'
-import { AnalyticsSummary, AuthUser, Client, Product, MonthlyData, ProductSale } from '@/lib/types'
+import { AnalyticsSummary, AuthUser, Client, Product, MonthlyData, ProductSale, AttendanceStatus } from '@/lib/types'
 import { Users, Package, Shield, ShoppingCart, CalendarRange } from 'lucide-react'
 
 interface DashboardProps {
@@ -103,6 +103,10 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
 
   const handleSetClients = (nextClients: Client[]) => {
     setClients(nextClients)
+  }
+
+  const handleAttendanceChange = (dni: string, status: AttendanceStatus) => {
+    setClients(prev => prev.map(c => c.dni === dni ? { ...c, todayAttendance: status } : c))
   }
 
   return (
@@ -205,6 +209,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
             clients={clients}
             onUpdateClient={handleUpdateClient}
             onAddClient={handleAddClient}
+            onAttendanceChange={handleAttendanceChange}
           />
         ) : viewMode === 'plans' ? (
           <PlansList

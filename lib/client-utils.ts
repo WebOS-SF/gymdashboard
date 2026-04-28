@@ -1,4 +1,4 @@
-import { ClientStatus, DurationUnit, PaymentSeverity, PaymentState, PlanTier, Weekday } from "./types"
+import { AttendanceStatus, ClientStatus, DurationUnit, PaymentSeverity, PaymentState, PlanTier, Weekday } from "./types"
 
 export const planTierLabels: Record<PlanTier, string> = {
   basic: "Básico",
@@ -83,6 +83,13 @@ export function normalizeClientStatus(status: unknown): ClientStatus {
   }
 
   return "active"
+}
+
+export function normalizeAttendanceStatus(status: unknown): AttendanceStatus {
+  const value = String(status || "").trim().toUpperCase()
+  if (value === "ABSENT") return "ABSENT"
+  if (value === "PRESENT") return "PRESENT"
+  return "NONE"
 }
 
 export function normalizePaymentMethod(paymentMethod: unknown) {
@@ -343,6 +350,11 @@ export function formatClient(client: {
     turn: string
     status: string
   }>
+  attendances?: Array<{
+    id: string
+    date: Date
+    status: string
+  }>
 }) {
   const memberSince = toIsoDate(client.joinDate)
   const orderedPlans = [...(client.plans || [])].sort(
@@ -428,5 +440,6 @@ export function formatClient(client: {
         }),
       }) === "inactive" ? "expired" : "active",
     })),
+    todayAttendance: normalizeAttendanceStatus(client.attendances?.[0]?.status),
   }
 }

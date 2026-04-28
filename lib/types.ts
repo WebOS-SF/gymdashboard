@@ -1,3 +1,4 @@
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'NONE'
 export type ClientStatus = 'active' | 'inactive' | 'pending_moderate' | 'pending_critical'
 export type UserRole = 'admin' | 'superadmin'
 export type DurationUnit = 'day' | 'week' | 'month' | 'year'
@@ -121,6 +122,7 @@ export interface Client {
   debt?: number
   debts: ClientDebt[]
   plans?: ClientPlan[]
+  todayAttendance: AttendanceStatus
 }
 
 export interface MonthlyData {

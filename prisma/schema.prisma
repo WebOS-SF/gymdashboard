@@ -49,6 +49,7 @@ model Client {
   createdById   Int?
   createdBy     AdminAccount? @relation("ClientsCreated", fields: [createdById], references: [id], onDelete: SetNull)
   appointments  Appointment[]
+  attendances   Attendance[]
   boletas       Boleta[]
   plans         ClientPlan[]
   sales         SalesRecord[]
@@ -131,6 +132,21 @@ model Factura {
   amount       Float
   tax          Float
   total        Float
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+}
+
+model Attendance {
+  id        String          @id @default(cuid())
+  date      DateTime
+  status    AttendanceStatus @default(PRESENT)
+  clientDni Int
+  client    Client          @relation(fields: [clientDni], references: [dni], onDelete: Cascade)
+
+  @@unique([clientDni, date])
 }
 
 model Appointment {
