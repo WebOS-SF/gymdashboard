@@ -70,7 +70,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                 <Input
                   id="email"
                   type="text"
-                  placeholder="superadmin"
+                  placeholder="Usuario"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="h-12 rounded-xl bg-secondary/50 border-0 text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/20"
@@ -114,9 +114,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
               {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
             </Button>
 
-            <p className="text-xs text-muted-foreground text-center pt-2">
-              Primer ingreso: <span className="font-medium">superadmin</span> / <span className="font-medium">superadmin</span>
-            </p>
+            
           </form>
         </CardContent>
       </Card>
