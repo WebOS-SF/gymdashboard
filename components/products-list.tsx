@@ -539,7 +539,7 @@ export function ProductsList({
                         </Badge>
                       </TableCell>
                       <TableCell className="text-foreground font-medium">
-                        ${product.price.toLocaleString()}
+                        S/ {product.price.toLocaleString()}
                       </TableCell>
                       <TableCell className="text-foreground">
                         {product.stock}

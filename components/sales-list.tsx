@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -80,6 +80,55 @@ export function SalesList({
   const [isWalkInClient, setIsWalkInClient] = useState(false);
   const [saleQty, setSaleQty] = useState(1);
   const [isSubmittingSale, setIsSubmittingSale] = useState(false);
+  const [isPendingPayment, setIsPendingPayment] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [historyDate, setHistoryDate] = useState("");
+  const [pendingSalesIds, setPendingSalesIds] = useState<number[]>([]);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("gym_pending_sales");
+      if (stored) {
+        setPendingSalesIds(JSON.parse(stored));
+      }
+    } catch(e) {}
+  }, []);
+
+  const togglePendingPayment = (saleId: number) => {
+    setPendingSalesIds(prev => {
+      const isPending = prev.includes(saleId);
+      const next = isPending ? prev.filter(id => id !== saleId) : [...prev, saleId];
+      localStorage.setItem("gym_pending_sales", JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const todayDateString = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }, []);
+
+  const todaySales = useMemo(() => {
+    return sales.filter(sale => {
+      const d = new Date(sale.saleDate);
+      const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      return ds === todayDateString;
+    });
+  }, [sales, todayDateString]);
+
+  const historySales = useMemo(() => {
+    if (!historyDate) return [];
+    return sales.filter(sale => {
+      const d = new Date(sale.saleDate);
+      const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      return ds === historyDate;
+    });
+  }, [sales, historyDate]);
+
+  const handleOpenHistory = () => {
+    setHistoryDate(todayDateString);
+    setIsHistoryOpen(true);
+  };
 
   const filteredProducts = products.filter((product) => {
     const term = normalizeSearchValue(productSearch);
@@ -143,12 +192,20 @@ export function SalesList({
       if (payload?.product) {
         onUpdateProduct(payload.product);
       }
+      if (isPendingPayment && payload?.sale?.id) {
+        setPendingSalesIds(prev => {
+          const next = [...prev, payload.sale.id];
+          localStorage.setItem("gym_pending_sales", JSON.stringify(next));
+          return next;
+        });
+      }
 
       setIsSelling(false);
       setSellingProduct(null);
       setSaleClientDni("");
       setSaleClientSearch("");
       setIsWalkInClient(false);
+      setIsPendingPayment(false);
       onSaleRecorded();
       toast.success("Venta registrada", {
         description: "El stock y la venta se actualizaron correctamente.",
@@ -165,7 +222,7 @@ export function SalesList({
   };
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] xl:grid-cols-[minmax(0,1fr)_minmax(450px,550px)]">
       <Card className="rounded-2xl border-0 bg-card shadow-sm">
         <CardHeader>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -238,7 +295,7 @@ export function SalesList({
                       </Badge>
                     </TableCell>
                     <TableCell className="font-medium text-foreground">
-                      ${product.price.toLocaleString()}
+                      S/ {product.price.toLocaleString()}
                     </TableCell>
                     <TableCell className="text-foreground">
                       {product.stock}
@@ -280,17 +337,22 @@ export function SalesList({
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary">
               <Package className="h-5 w-5 text-foreground" />
             </div>
-            <div>
-              <CardTitle className="text-foreground">Lista de ventas</CardTitle>
-              <CardDescription className="text-muted-foreground">
-                {sales.length} ventas registradas
-              </CardDescription>
+            <div className="flex-1 flex justify-between items-start sm:items-center">
+              <div>
+                <CardTitle className="text-foreground">Ventas de hoy</CardTitle>
+                <CardDescription className="text-muted-foreground">
+                  {todaySales.length} ventas registradas hoy
+                </CardDescription>
+              </div>
+              <Button variant="link" className="text-primary text-sm p-0 h-auto" onClick={handleOpenHistory}>
+                Ver más
+              </Button>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           <div className="max-h-[420px] space-y-3 overflow-y-auto pr-2">
-            {sales.map((sale) => (
+            {todaySales.map((sale) => (
               <div
                 key={sale.id}
                 className="rounded-lg bg-secondary/40 p-3 transition-colors hover:bg-secondary/60"
@@ -304,18 +366,30 @@ export function SalesList({
                         : sale.client?.nameComplete || `DNI ${sale.clientDni}`}
                     </p>
                   </div>
-                  <p className="whitespace-nowrap font-semibold text-foreground">
-                    ${sale.amount.toLocaleString()}
-                  </p>
+                  <div className="flex flex-col items-end gap-1">
+                    <p className="whitespace-nowrap font-semibold text-foreground">
+                      S/ {sale.amount.toLocaleString()}
+                    </p>
+                    <button
+                      onClick={() => togglePendingPayment(sale.id)}
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${
+                        pendingSalesIds.includes(sale.id) 
+                          ? "bg-destructive/15 text-destructive hover:bg-destructive/25" 
+                          : "bg-success/15 text-success hover:bg-success/25"
+                      }`}
+                    >
+                      {pendingSalesIds.includes(sale.id) ? "Falta cancelar" : "Pagado"}
+                    </button>
+                  </div>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
                   {formatSaleDate(sale.saleDate)}
                 </p>
               </div>
             ))}
-            {sales.length === 0 && (
+            {todaySales.length === 0 && (
               <div className="rounded-lg bg-secondary/30 py-10 text-center text-sm text-muted-foreground">
-                No hay ventas registradas
+                No hay ventas registradas hoy
               </div>
             )}
           </div>
@@ -399,6 +473,13 @@ export function SalesList({
                   />
                   Cliente espontáneo
                 </label>
+                <label className="flex h-11 items-center gap-2 rounded-lg border bg-secondary/30 px-3 text-sm text-foreground sm:whitespace-nowrap">
+                  <Checkbox
+                    checked={isPendingPayment}
+                    onCheckedChange={(c) => setIsPendingPayment(c === true)}
+                  />
+                  Falta cancelar (Debe)
+                </label>
               </div>
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">Cantidad</p>
@@ -431,6 +512,67 @@ export function SalesList({
               {isSubmittingSale ? "Registrando..." : "Confirmar"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Historial de ventas</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Seleccionar fecha</label>
+              <Input
+                type="date"
+                value={historyDate}
+                onChange={(e) => setHistoryDate(e.target.value)}
+                className="w-full bg-secondary/50"
+              />
+            </div>
+            <div className="max-h-[300px] space-y-3 overflow-y-auto pr-2">
+              {historySales.map((sale) => (
+                <div
+                  key={sale.id}
+                  className="rounded-lg bg-secondary/40 p-3 transition-colors hover:bg-secondary/60"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-foreground">{sale.product}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {sale.clientDni === 0
+                          ? "Cliente espontáneo"
+                          : sale.client?.nameComplete || `DNI ${sale.clientDni}`}
+                      </p>
+                    </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <p className="whitespace-nowrap font-semibold text-foreground">
+                      S/ {sale.amount.toLocaleString()}
+                    </p>
+                    <button
+                      onClick={() => togglePendingPayment(sale.id)}
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${
+                        pendingSalesIds.includes(sale.id) 
+                          ? "bg-destructive/15 text-destructive hover:bg-destructive/25" 
+                          : "bg-success/15 text-success hover:bg-success/25"
+                      }`}
+                    >
+                      {pendingSalesIds.includes(sale.id) ? "Falta cancelar" : "Pagado"}
+                    </button>
+                  </div>
+                </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {formatSaleDate(sale.saleDate)}
+                  </p>
+                </div>
+              ))}
+              {historySales.length === 0 && (
+                <div className="rounded-lg bg-secondary/30 py-10 text-center text-sm text-muted-foreground">
+                  No hay ventas en esta fecha
+                </div>
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

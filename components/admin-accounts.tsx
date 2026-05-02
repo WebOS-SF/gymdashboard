@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge'
 import { ButtonSpinner } from '@/components/ui/button-spinner'
 import { AdminAccount } from '@/lib/types'
-import { Check, KeyRound, Trash2, UserPlus, X } from 'lucide-react'
+import { Check, KeyRound, Trash2, UserPlus, X, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface AdminAccountsProps {
@@ -25,6 +25,8 @@ export function AdminAccounts({ currentUserId }: AdminAccountsProps) {
   const [isCreating, setIsCreating] = useState(false)
   const [savingPasswordId, setSavingPasswordId] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
 
   const fetchAccounts = async () => {
     const res = await fetch('/api/admins')
@@ -59,6 +61,7 @@ export function AdminAccounts({ currentUserId }: AdminAccountsProps) {
       setAccounts((prev) => [data, ...prev])
       setUsername('')
       setPassword('')
+      setShowPassword(false)
       toast.success('Admin creado', {
         description: 'La cuenta nueva ya está disponible.',
       })
@@ -93,6 +96,7 @@ export function AdminAccounts({ currentUserId }: AdminAccountsProps) {
       setAccounts((prev) => prev.map((account) => (account.id === id ? data : account)))
       setEditingPasswordId(null)
       setNewPassword('')
+      setShowNewPassword(false)
       toast.success('Contraseña actualizada', {
         description: 'La nueva contraseña quedó guardada.',
       })
@@ -143,20 +147,29 @@ export function AdminAccounts({ currentUserId }: AdminAccountsProps) {
               Crea admins, cambia contraseñas y elimina accesos.
             </CardDescription>
           </div>
-          <div className="grid gap-2 sm:grid-cols-[180px_180px_auto]">
+          <div className="grid gap-2 sm:grid-cols-[240px_240px_auto]">
             <Input
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Usuario"
               className="h-10 rounded-xl bg-secondary/50 border-0"
             />
-            <Input
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Contraseña"
-              type="password"
-              className="h-10 rounded-xl bg-secondary/50 border-0"
-            />
+            <div className="relative">
+              <Input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Contraseña"
+                type={showPassword ? "text" : "password"}
+                className="h-10 rounded-xl bg-secondary/50 border-0 pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
             <Button onClick={handleCreate} disabled={!username || !password || isCreating} className="h-10 rounded-xl">
               {isCreating ? <ButtonSpinner /> : <UserPlus className="h-4 w-4 mr-2" />}
               Crear Admin
@@ -194,13 +207,22 @@ export function AdminAccounts({ currentUserId }: AdminAccountsProps) {
                   </TableCell>
                   <TableCell>
                     {editingPasswordId === account.id ? (
-                      <Input
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        type="password"
-                        placeholder="Nueva contraseña"
-                        className="h-9 max-w-56 rounded-lg bg-secondary/50 border-0"
-                      />
+                      <div className="relative max-w-56">
+                        <Input
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          type={showNewPassword ? "text" : "password"}
+                          placeholder="Nueva contraseña"
+                          className="h-9 w-full rounded-lg bg-secondary/50 border-0 pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     ) : (
                       <span className="text-muted-foreground">Oculta</span>
                     )}
@@ -223,6 +245,7 @@ export function AdminAccounts({ currentUserId }: AdminAccountsProps) {
                           onClick={() => {
                             setEditingPasswordId(null)
                             setNewPassword('')
+                            setShowNewPassword(false)
                           }}
                           disabled={savingPasswordId === account.id}
                           className="h-8 w-8 rounded-lg text-muted-foreground hover:text-[#FF6B6B] hover:bg-[#FF6B6B]/10"

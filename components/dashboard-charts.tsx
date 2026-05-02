@@ -2,18 +2,21 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
-import { MonthlyData } from '@/lib/types'
+import { MonthlyData, ProductSale } from '@/lib/types'
 import { useTheme } from '@/hooks/use-theme'
 import { useMemo, useState } from 'react'
 
 interface DashboardChartsProps {
   data: MonthlyData[]
+  sales: ProductSale[]
 }
 
-export function DashboardCharts({ data }: DashboardChartsProps) {
+export function DashboardCharts({ data, sales }: DashboardChartsProps) {
   const { theme, mounted } = useTheme()
   const [period, setPeriod] = useState<'month' | 'year'>('year')
+  const [productsDate, setProductsDate] = useState<string>('')
   
   const primaryColor = "#FF6B6B"
   const accentColor = "#5B8DEF"
@@ -32,6 +35,26 @@ export function DashboardCharts({ data }: DashboardChartsProps) {
 
   const last = chartData[chartData.length - 1]
   const prev = chartData[chartData.length - 2]
+
+  const productsChartData = useMemo(() => {
+    if (!productsDate) {
+      return chartData.slice(-6).map(d => ({ name: d.month, products: d.products }))
+    }
+    const filteredSales = sales.filter(s => {
+      const d = new Date(s.saleDate)
+      const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      return ds === productsDate
+    })
+    const grouped = new Map<string, number>()
+    for (const s of filteredSales) {
+      grouped.set(s.product, (grouped.get(s.product) || 0) + 1)
+    }
+    return Array.from(grouped.entries()).map(([name, products]) => ({ name, products }))
+  }, [chartData, sales, productsDate])
+
+  const totalProducts = productsDate 
+    ? productsChartData.reduce((a, d) => a + d.products, 0)
+    : chartData.reduce((a, d) => a + d.products, 0)
 
   const productsChange = last && prev ? last.products - prev.products : 0
   const productsChangePct = last && prev && prev.products > 0 ? Math.round((productsChange / prev.products) * 100) : 0
@@ -113,18 +136,40 @@ export function DashboardCharts({ data }: DashboardChartsProps) {
         {/* Mini Chart 1 */}
         <Card className="rounded-2xl border-0 shadow-sm bg-card">
           <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Productos Vendidos</CardTitle>
-              <span className={`text-xs font-medium px-2 py-1 rounded-full ${productsChangePct >= 0 ? 'text-success bg-success/10' : 'text-destructive bg-destructive/10'}`}>
-                {productsChangePct >= 0 ? '+' : ''}{productsChangePct}%
-              </span>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground shrink-0">Productos Vendidos</CardTitle>
+              <div className="flex items-center gap-2">
+                <Input 
+                  type="date" 
+                  value={productsDate} 
+                  onChange={e => setProductsDate(e.target.value)}
+                  className="h-7 w-[110px] sm:w-[120px] text-xs px-2 py-1 bg-secondary/50 border-0 text-muted-foreground"
+                />
+                {productsDate ? (
+                  <button onClick={() => setProductsDate('')} className="text-xs text-muted-foreground hover:text-foreground shrink-0">
+                    Limpiar
+                  </button>
+                ) : (
+                  <span className={`text-xs font-medium px-2 py-1 rounded-full shrink-0 ${productsChangePct >= 0 ? 'text-success bg-success/10' : 'text-destructive bg-destructive/10'}`}>
+                    {productsChangePct >= 0 ? '+' : ''}{productsChangePct}%
+                  </span>
+                )}
+              </div>
             </div>
-            <p className="text-2xl font-bold text-foreground">{chartData.reduce((a, d) => a + d.products, 0)}</p>
+            <div className="mt-1">
+              <p className="text-2xl font-bold text-foreground">{totalProducts}</p>
+            </div>
           </CardHeader>
           <CardContent className="pb-4">
             <div className="h-[80px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData.slice(-6)}>
+                <BarChart data={productsChartData}>
+                  <Tooltip 
+                    cursor={{fill: 'transparent'}}
+                    contentStyle={{ backgroundColor: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: '8px', fontSize: '12px' }}
+                    labelStyle={{ color: tooltipText, fontWeight: 600, marginBottom: '4px' }}
+                    formatter={(val: number) => [val, 'Ventas']}
+                  />
                   <Bar 
                     dataKey="products" 
                     fill={accentColor}

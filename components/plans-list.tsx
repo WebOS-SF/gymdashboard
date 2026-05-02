@@ -209,9 +209,9 @@ export function PlansList({ clients, canViewMoney, onClientsChange }: PlansListP
                     {canViewMoney && (
                       <TableCell className="hidden sm:table-cell">
                         <div>
-                          <p className="text-foreground font-semibold">${plan.totalPrice.toLocaleString()}</p>
+                          <p className="text-foreground font-semibold">S/ {plan.totalPrice.toLocaleString()}</p>
                           <p className={`${plan.debt > 0 ? 'text-[#FF6B6B]' : 'text-muted-foreground'} text-xs`}>
-                            Deuda: ${plan.debt.toLocaleString()}
+                            Deuda: S/ {plan.debt.toLocaleString()}
                           </p>
                         </div>
                       </TableCell>

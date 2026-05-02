@@ -464,19 +464,19 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
                 <div>
                   <p className="text-muted-foreground">Precio Total</p>
                   <p className="font-semibold text-foreground">
-                    {canViewMoney ? `$${(planPreview?.totalPrice || 0).toLocaleString()}` : 'Restringido'}
+                    {canViewMoney ? `S/ ${(planPreview?.totalPrice || 0).toLocaleString()}` : 'Restringido'}
                   </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Pagado</p>
                   <p className="font-semibold text-foreground">
-                    {canViewMoney ? `$${formData.amountPaid.toLocaleString()}` : 'Restringido'}
+                    {canViewMoney ? `S/ ${formData.amountPaid.toLocaleString()}` : 'Restringido'}
                   </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Deuda</p>
                   <p className={`font-semibold ${(planPreview?.debt || 0) > 0 ? 'text-[#FF6B6B]' : 'text-[#26DE81]'}`}>
-                    {canViewMoney ? `$${(planPreview?.debt || 0).toLocaleString()}` : 'Restringido'}
+                    {canViewMoney ? `S/ ${(planPreview?.debt || 0).toLocaleString()}` : 'Restringido'}
                   </p>
                 </div>
               </div>

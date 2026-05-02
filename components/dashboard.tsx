@@ -120,7 +120,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
             <StatsCards clients={clients} products={products} analytics={analytics} />
 
             {/* Charts Section */}
-            <DashboardCharts data={monthlyData} />
+            <DashboardCharts data={monthlyData} sales={sales} />
           </>
         )}
 

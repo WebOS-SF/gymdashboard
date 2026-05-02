@@ -39,7 +39,7 @@ export function StatsCards({ clients, products, analytics }: StatsCardsProps) {
     },
     {
       title: 'Membresías',
-      value: `$${monthlyIncome.toLocaleString()}`,
+      value: `S/ ${monthlyIncome.toLocaleString()}`,
       subtitle: `${pendingPayments} con cobranza pendiente`,
       icon: DollarSign,
       iconBg: 'bg-gradient-to-br from-[#5B8DEF] to-[#4a7de0]',
@@ -48,7 +48,7 @@ export function StatsCards({ clients, products, analytics }: StatsCardsProps) {
     },
     {
       title: 'Ventas Facturadas',
-      value: `$${salesRevenue.toLocaleString()}`,
+      value: `S/ ${salesRevenue.toLocaleString()}`,
       subtitle: `${analytics?.totalSales || 0} ventas registradas`,
       icon: TrendingUp,
       iconBg: 'bg-gradient-to-br from-[#9B6DD7] to-[#8a5cc6]',
@@ -97,21 +97,21 @@ export function StatsCards({ clients, products, analytics }: StatsCardsProps) {
               <CreditCard className="h-5 w-5 opacity-80" />
               <span className="text-sm font-medium opacity-80">Total Ganado</span>
             </div>
-            <p className="text-4xl font-bold mb-4">${totalEarned.toLocaleString()}</p>
+            <p className="text-4xl font-bold mb-4">S/ {totalEarned.toLocaleString()}</p>
           </div>
           
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-sm opacity-70">Membresías</span>
-              <span className="text-sm font-semibold">${monthlyIncome.toLocaleString()}</span>
+              <span className="text-sm font-semibold">S/ {monthlyIncome.toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm opacity-70">Ventas</span>
-              <span className="text-sm font-semibold">${salesRevenue.toLocaleString()}</span>
+              <span className="text-sm font-semibold">S/ {salesRevenue.toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm opacity-70">Deudas por cobrar</span>
-              <span className="text-sm font-semibold text-yellow-200">${totalDebts.toLocaleString()}</span>
+              <span className="text-sm font-semibold text-yellow-200">S/ {totalDebts.toLocaleString()}</span>
             </div>
           </div>
         </CardContent>
