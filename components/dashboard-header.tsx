@@ -74,7 +74,7 @@ export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
             <Dumbbell className="h-5 w-5 text-primary-foreground" />
           </div>
           <div className="hidden sm:block">
-            <h1 className="text-lg font-bold text-foreground">GymPro</h1>
+            <h1 className="text-lg font-bold text-foreground">jcFitness Gym</h1>
             <p className="text-xs text-muted-foreground">
               {user.username} · {user.role === 'superadmin' ? 'Superadmin' : 'Admin'}
             </p>
