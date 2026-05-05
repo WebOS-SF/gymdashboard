@@ -2,28 +2,24 @@ import { AttendanceStatus, ClientStatus, DurationUnit, PaymentSeverity, PaymentS
 
 export const planTierLabels: Record<PlanTier, string> = {
   basic: "Básico",
-  premium: "Premium",
-  vip: "VIP",
+  interdiario: "Interdiario (3x)",
+  diario: "Diario",
+  por_dia: "Pago por día",
 }
 
-export const planTierPrices: Record<PlanTier, Record<"day" | "week" | "month" | "year", number>> = {
+export const planTierPrices: Record<PlanTier, Record<string, number>> = {
   basic: {
-    day: 20,
-    week: 100,
-    month: 300,
-    year: 2800,
+    day: 8,
+    month: 80,
   },
-  premium: {
-    day: 25,
-    week: 140,
-    month: 400,
-    year: 3200,
+  interdiario: {
+    month: 50,
   },
-  vip: {
-    day: 35,
-    week: 160,
-    month: 500,
-    year: 4000,
+  diario: {
+    month: 80,
+  },
+  por_dia: {
+    day: 8,
   },
 }
 
@@ -47,17 +43,16 @@ export const weekdayLabels: Record<Weekday, string> = {
   sunday: "Dom",
 }
 
-export const durationUnitLabels: Record<DurationUnit, string> = {
+export const durationUnitLabels: Record<string, string> = {
   day: "dia",
-  week: "semana",
   month: "mes",
-  year: "año",
 }
 
 export function normalizePlanTier(planTier: unknown): PlanTier {
   const value = String(planTier || "basic").trim().toLowerCase()
-  if (value === "premium") return "premium"
-  if (value === "vip") return "vip"
+  if (value === "interdiario") return "interdiario"
+  if (value === "diario") return "diario"
+  if (value === "por_dia") return "por_dia"
   return "basic"
 }
 
@@ -189,15 +184,24 @@ export function calculatePlanPrice(input: {
   const prices = planTierPrices[planTier]
 
   let pricingMode = "per_day"
-  let totalPrice = sessionCount * prices.day
+  let totalPrice = sessionCount * (prices.day || 8)
 
-  if (isFullSchedule && durationUnit === "week") {
+  if (planTier === "interdiario" && durationUnit === "month") {
+    pricingMode = "fixed_interdiario"
+    totalPrice = durationValue * 50
+  } else if (planTier === "diario" && durationUnit === "month") {
+    pricingMode = "fixed_diario"
+    totalPrice = durationValue * 80
+  } else if (planTier === "por_dia") {
+    pricingMode = "fixed_day"
+    totalPrice = sessionCount * 8
+  } else if (isFullSchedule && durationUnit === "week" && prices.week) {
     pricingMode = "full_week"
     totalPrice = durationValue * prices.week
-  } else if (isFullSchedule && durationUnit === "month") {
+  } else if (isFullSchedule && durationUnit === "month" && prices.month) {
     pricingMode = "full_month"
     totalPrice = durationValue * prices.month
-  } else if (isFullSchedule && durationUnit === "year") {
+  } else if (isFullSchedule && durationUnit === "year" && prices.year) {
     pricingMode = "full_year"
     totalPrice = durationValue * prices.year
   }
@@ -364,14 +368,14 @@ export function formatClient(client: {
   const debt = currentPlan?.debt ?? client.debt ?? 0
   const status = currentPlan
     ? deriveClientStatus({
+      endDate: currentPlan.endDate,
+      debt,
+      paymentSeverity: calculatePaymentSeverity({
+        startDate: currentPlan.startDate,
         endDate: currentPlan.endDate,
         debt,
-        paymentSeverity: calculatePaymentSeverity({
-          startDate: currentPlan.startDate,
-          endDate: currentPlan.endDate,
-          debt,
-        }),
-      })
+      }),
+    })
     : normalizeClientStatus(client.status)
   const totalPaid = orderedPlans.reduce((sum, plan) => sum + Number(plan.amountPaid || 0), 0)
 

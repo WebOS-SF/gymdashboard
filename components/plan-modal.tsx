@@ -122,6 +122,28 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
     setFormData(buildInitialState(mode, client, plan))
   }, [mode, client, plan, isOpen])
 
+  useEffect(() => {
+    if (formData.planTier === 'por_dia' && formData.joinDate) {
+      const [year, month, day] = formData.joinDate.split('-').map(Number)
+      if (year && month && day) {
+        // Crear fecha localmente para obtener el día de la semana correcto
+        const date = new Date(year, month - 1, day)
+        const dayOfWeek = weekdayOrder[(date.getDay() + 6) % 7]
+
+        setFormData((prev) => {
+          if (prev.attendanceDays.length === 1 && prev.attendanceDays[0] === dayOfWeek) {
+            return prev
+          }
+          return {
+            ...prev,
+            attendanceDays: [dayOfWeek],
+            attendancePreset: 'custom',
+          }
+        })
+      }
+    }
+  }, [formData.planTier, formData.joinDate])
+
   const selectedClient = clients.find((item) => item.dni === formData.clientDni) || client
   const clientSuggestions = useMemo(() => {
     const term = normalizeSearchValue(formData.clientDni)
@@ -141,19 +163,46 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
       .slice(0, 5)
       .map(({ client }) => client)
   }, [clients, formData.clientDni, mode])
+  const hasValidDaySelection = useMemo(() => {
+    if (formData.planTier === 'interdiario') return formData.attendanceDays.length === 3
+    if (formData.planTier === 'diario') return formData.attendanceDays.length === 7
+    if (formData.planTier === 'por_dia') return formData.attendanceDays.length === 1
+    return formData.attendanceDays.length > 0
+  }, [formData.planTier, formData.attendanceDays])
+
   const hasPlanInputs = Boolean(
     formData.clientDni &&
     formData.joinDate &&
     formData.durationValue > 0 &&
-    formData.attendanceDays.length > 0
+    hasValidDaySelection
   )
+
+  const validationMessage = useMemo(() => {
+    if (!formData.clientDni) return 'Selecciona un cliente con su DNI'
+    if (formData.durationValue <= 0) return 'Ingresa un periodo (ej: 1 mes)'
+    if (formData.planTier === 'interdiario' && formData.attendanceDays.length !== 3) {
+      return `Plan Interdiario: Selecciona exactamente 3 días (llevas ${formData.attendanceDays.length})`
+    }
+    if (formData.planTier === 'diario' && formData.attendanceDays.length !== 7) {
+      return 'Plan Diario: Debes marcar los 7 días'
+    }
+    if (formData.planTier === 'por_dia' && formData.attendanceDays.length !== 1) {
+      return 'Pago por día: Selecciona exactamente 1 día'
+    }
+    if (formData.attendanceDays.length === 0) return 'Selecciona al menos un día de asistencia'
+    return null
+  }, [formData])
 
   const planPreview = useMemo(() => {
     if (!hasPlanInputs) return null
 
+    // Parsear fecha de forma segura (YYYY-MM-DD) para evitar desfases de zona horaria
+    const [y, m, d] = formData.joinDate.split('-').map(Number)
+    const startDate = new Date(y, m - 1, d)
+
     return buildPlanPayload({
       planTier: formData.planTier,
-      startDate: new Date(formData.joinDate),
+      startDate,
       durationValue: formData.durationValue,
       durationUnit: formData.durationUnit,
       attendanceDays: formData.attendanceDays,
@@ -163,7 +212,34 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
     })
   }, [formData, hasPlanInputs])
 
+  const handlePlanTierChange = (planTier: PlanTier) => {
+    setFormData((current) => {
+      const updates: Partial<PlanFormState> = { planTier }
+
+      if (planTier === 'interdiario') {
+        updates.durationValue = 1
+        updates.durationUnit = 'month'
+        updates.attendancePreset = 'alternate'
+        updates.attendanceDays = alternateAttendanceDays
+      } else if (planTier === 'diario') {
+        updates.durationValue = 1
+        updates.durationUnit = 'month'
+        updates.attendancePreset = 'daily'
+        updates.attendanceDays = defaultAttendanceDays
+      } else if (planTier === 'por_dia') {
+        updates.durationValue = 1
+        updates.durationUnit = 'day'
+        updates.attendancePreset = 'daily'
+        updates.attendanceDays = [weekdayOrder[(new Date().getDay() + 6) % 7]] // Hoy
+      }
+
+      return { ...current, ...updates }
+    })
+  }
+
   const handleAttendancePresetChange = (preset: AttendancePreset) => {
+    if (formData.planTier === 'por_dia') return
+
     setFormData((current) => ({
       ...current,
       attendancePreset: preset,
@@ -180,6 +256,16 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
 
   const toggleDay = (day: Weekday, checked: boolean) => {
     setFormData((current) => {
+      // En pago por día no permitimos cambiar los días manualmente (se rige por la fecha)
+      if (current.planTier === 'por_dia') {
+        return current
+      }
+
+      // Si es plan interdiario y se intenta agregar un 4to día, no hacer nada
+      if (checked && current.planTier === 'interdiario' && current.attendanceDays.length >= 3) {
+        return current
+      }
+
       const nextDays = checked
         ? [...current.attendanceDays, day]
         : current.attendanceDays.filter((value) => value !== day)
@@ -215,7 +301,6 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
 
   if (!isOpen) return null
 
-  const isDaysLocked = formData.attendancePreset !== 'custom'
   const title =
     mode === 'edit'
       ? 'Editar Plan'
@@ -302,7 +387,7 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
                   <FieldLabel>Plan</FieldLabel>
                   <Select
                     value={formData.planTier}
-                    onValueChange={(planTier: PlanTier) => setFormData({ ...formData, planTier })}
+                    onValueChange={handlePlanTierChange}
                   >
                     <SelectTrigger className="bg-input border-border text-foreground">
                       <SelectValue />
@@ -336,15 +421,17 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
                   <div className="grid grid-cols-[120px_1fr] gap-2">
                     <Input
                       type="number"
-                      min={0}
+                      min={1}
                       value={formData.durationValue}
-                      onChange={(e) => setFormData({ ...formData, durationValue: Number(e.target.value) || 0 })}
+                      onChange={(e) => setFormData({ ...formData, durationValue: Number(e.target.value) || 1 })}
                       className="bg-input border-border text-foreground"
                       required
+                      disabled={formData.planTier === 'por_dia'}
                     />
                     <Select
                       value={formData.durationUnit}
                       onValueChange={(durationUnit: DurationUnit) => setFormData({ ...formData, durationUnit })}
+                      disabled={formData.planTier !== 'basic'}
                     >
                       <SelectTrigger className="bg-input border-border text-foreground">
                         <SelectValue />
@@ -360,30 +447,17 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
                   </div>
                 </Field>
 
-                <Field>
-                  <FieldLabel>Frecuencia</FieldLabel>
-                  <Select value={formData.attendancePreset} onValueChange={(value: AttendancePreset) => handleAttendancePresetChange(value)}>
-                    <SelectTrigger className="bg-input border-border text-foreground">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-popover border-border">
-                      <SelectItem value="daily" className="text-foreground hover:bg-secondary">Diario</SelectItem>
-                      <SelectItem value="alternate" className="text-foreground hover:bg-secondary">Interdiario</SelectItem>
-                      <SelectItem value="custom" className="text-foreground hover:bg-secondary">Personalizado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
               </div>
 
               <Field>
-                <FieldLabel>Días permitidos</FieldLabel>
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 rounded-xl border border-border/60 p-4">
+                <FieldLabel>Días permitidos {formData.planTier === 'por_dia' && '(Sincronizado con fecha de inicio)'}</FieldLabel>
+                <div className={`grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 rounded-xl border border-border/60 p-4 ${formData.planTier === 'por_dia' ? 'opacity-60 bg-secondary/10' : ''}`}>
                   {weekdayOrder.map((day) => (
                     <label key={day} className="flex items-center gap-2 text-sm text-foreground">
                       <Checkbox
                         checked={formData.attendanceDays.includes(day)}
-                        disabled={isDaysLocked}
                         onCheckedChange={(checked) => toggleDay(day, Boolean(checked))}
+                        disabled={formData.planTier === 'por_dia'}
                       />
                       {weekdayLabels[day]}
                     </label>
@@ -451,8 +525,8 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
                 </div>
               ) : (
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className="rounded-lg border-border/60">
-                    Completa cliente, periodo y días para ver el cálculo
+                  <Badge variant="outline" className="rounded-lg border-border/60 text-[#FF6B6B]">
+                    {validationMessage}
                   </Badge>
                 </div>
               )}
