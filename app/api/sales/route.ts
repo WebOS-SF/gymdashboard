@@ -40,28 +40,24 @@ export async function POST(req: Request) {
     const body = await req.json();
     const persistedUserId = await getPersistedUserId(user)
 
-    const productId = Number(body.productId)
     const isWalkInClient = body.isWalkInClient === true
     const clientDni = isWalkInClient ? WALK_IN_CLIENT_DNI : Number(body.clientDni)
-    const quantity = Number(body.quantity ?? 1)
+    
+    // Support both single item (legacy) and multiple items
+    const items = body.items && Array.isArray(body.items) 
+      ? body.items 
+      : [{ productId: body.productId, quantity: body.quantity }]
 
-    if (!Number.isFinite(productId) || !Number.isFinite(clientDni) || !Number.isFinite(quantity) || quantity <= 0) {
-      return NextResponse.json({ error: "Invalid payload" }, { status: 400 })
+    if (items.length === 0) {
+      return NextResponse.json({ error: "No items provided" }, { status: 400 })
+    }
+
+    if (!isWalkInClient && isNaN(clientDni)) {
+      return NextResponse.json({ error: "Invalid client DNI" }, { status: 400 })
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      const product = await tx.product.findUnique({
-        where: { id: productId },
-      })
-
-      if (!product) {
-        return { error: "Product not found" as const }
-      }
-
-      if (product.stock < quantity) {
-        return { error: "Not enough stock" as const }
-      }
-
+      // 1. If walk-in, ensure the client exists
       if (isWalkInClient) {
         await tx.client.upsert({
           where: { dni: WALK_IN_CLIENT_DNI },
@@ -79,44 +75,71 @@ export async function POST(req: Request) {
         })
       }
 
-      const updatedProduct = await tx.product.update({
-        where: { id: productId },
-        data: { stock: product.stock - quantity },
-      })
+      const processedItems = []
 
-      const sale = await tx.salesRecord.create({
-        data: {
-          product: product.name,
-          amount: product.price * quantity,
-          saleDate: new Date(),
-          clientDni,
-          soldById: persistedUserId,
-        },
-      })
+      // 2. Process each item
+      for (const item of items) {
+        const productId = Number(item.productId)
+        const quantity = Number(item.quantity ?? 1)
 
-      return { sale, product: updatedProduct, quantity }
+        if (isNaN(productId) || isNaN(quantity) || quantity <= 0) {
+          throw new Error(`Invalid item: ${JSON.stringify(item)}`)
+        }
+
+        const product = await tx.product.findUnique({
+          where: { id: productId },
+        })
+
+        if (!product) {
+          throw new Error(`Producto no encontrado: ID ${productId}`)
+        }
+
+        if (product.stock < quantity) {
+          throw new Error(`Stock insuficiente para ${product.name}`)
+        }
+
+        // Update stock
+        const updatedProduct = await tx.product.update({
+          where: { id: productId },
+          data: { stock: product.stock - quantity },
+        })
+
+        // Create sale record
+        const sale = await tx.salesRecord.create({
+          data: {
+            product: product.name,
+            amount: product.price * quantity,
+            saleDate: new Date(),
+            clientDni,
+            soldById: persistedUserId,
+          },
+        })
+
+        processedItems.push({ sale, product: updatedProduct, quantity })
+      }
+
+      return { items: processedItems }
     })
 
-    if ("error" in result) {
-      const status = result.error === "Product not found" ? 404 : 400
-      return NextResponse.json({ error: result.error }, { status })
-    }
-
     if (user.role === "admin") {
+      const totalAmount = result.items.reduce((sum, item) => sum + item.sale.amount, 0)
+      const productsSummary = result.items.map(i => `${i.quantity}x ${i.sale.product}`).join(", ")
+      
       await notifySuperadmins({
         actorId: user.id,
         type: "sale_created",
         title: "Nueva venta registrada",
-        message: `${user.username} vendió ${result.quantity} x ${result.sale.product} por S/ ${result.sale.amount.toLocaleString("es-PE")}.`,
+        message: `${user.username} vendió: ${productsSummary} por un total de S/ ${totalAmount.toLocaleString("es-PE")}.`,
         entityType: "sale",
-        entityId: result.sale.id,
+        entityId: result.items[0].sale.id, // Reference first sale for now
       })
     }
 
     return NextResponse.json(result);
   } catch (error) {
+    console.error("Error creating sale:", error);
     return NextResponse.json(
-      { error: "Error creating sale" },
+      { error: error instanceof Error ? error.message : "Error creating sale" },
       { status: 500 }
     );
   }

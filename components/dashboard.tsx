@@ -112,7 +112,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader user={user} onLogout={onLogout} />
-      
+
       <main className="p-4 space-y-4">
         {isSuperadmin && (
           <>
@@ -131,75 +131,70 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
               variant="ghost"
               size="sm"
               onClick={() => setViewMode('clients')}
-              className={`shrink-0 whitespace-nowrap rounded-lg transition-all ${
-                viewMode === 'clients' 
-                  ? 'bg-primary text-primary-foreground shadow-md' 
+              className={`shrink-0 whitespace-nowrap rounded-lg transition-all ${viewMode === 'clients'
+                  ? 'bg-primary text-primary-foreground shadow-md'
                   : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
-              }`}
+                }`}
             >
               <Users className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Clientes</span>
             </Button>
-          {isSuperadmin && (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setViewMode('products')}
-                className={`shrink-0 whitespace-nowrap rounded-lg transition-all ${
-                  viewMode === 'products' 
-                    ? 'bg-primary text-primary-foreground shadow-md' 
-                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+            {isSuperadmin && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setViewMode('products')}
+                  className={`shrink-0 whitespace-nowrap rounded-lg transition-all ${viewMode === 'products'
+                      ? 'bg-primary text-primary-foreground shadow-md'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+                    }`}
+                >
+                  <Package className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Productos</span>
+                </Button>
+              </>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setViewMode('plans')}
+              className={`shrink-0 whitespace-nowrap rounded-lg transition-all ${viewMode === 'plans'
+                  ? 'bg-primary text-primary-foreground shadow-md'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
                 }`}
-              >
-                <Package className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Productos</span>
-              </Button>
-            </>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setViewMode('plans')}
-            className={`shrink-0 whitespace-nowrap rounded-lg transition-all ${
-              viewMode === 'plans'
-                ? 'bg-primary text-primary-foreground shadow-md'
-                : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
-            }`}
-          >
-            <CalendarRange className="h-4 w-4 sm:mr-2" />
-            <span className="hidden sm:inline">Planes</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setViewMode('sales')}
-            className={`shrink-0 whitespace-nowrap rounded-lg transition-all ${
-              viewMode === 'sales'
-                ? 'bg-primary text-primary-foreground shadow-md'
-                : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
-            }`}
-          >
-            <ShoppingCart className="h-4 w-4 sm:mr-2" />
-            <span className="hidden sm:inline">Ventas</span>
-          </Button>
-          {isSuperadmin && (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setViewMode('admins')}
-                className={`shrink-0 whitespace-nowrap rounded-lg transition-all ${
-                  viewMode === 'admins'
-                    ? 'bg-primary text-primary-foreground shadow-md'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+            >
+              <CalendarRange className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Planes</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setViewMode('sales')}
+              className={`shrink-0 whitespace-nowrap rounded-lg transition-all ${viewMode === 'sales'
+                  ? 'bg-primary text-primary-foreground shadow-md'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
                 }`}
-              >
-                <Shield className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Admins</span>
-              </Button>
-            </>
-          )}
+            >
+              <ShoppingCart className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Ventas</span>
+            </Button>
+            {isSuperadmin && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setViewMode('admins')}
+                  className={`shrink-0 whitespace-nowrap rounded-lg transition-all ${viewMode === 'admins'
+                      ? 'bg-primary text-primary-foreground shadow-md'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+                    }`}
+                >
+                  <Shield className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Admins</span>
+                </Button>
+              </>
+            )}
           </div>
         </div>
 

@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/table";
 import { ButtonSpinner } from "@/components/ui/button-spinner";
 import { Client, Product, ProductSale } from "@/lib/types";
-import { Check, Package, Search, ShoppingCart } from "lucide-react";
+import { Check, Package, Search, ShoppingCart, Trash2, Plus, Minus, X } from "lucide-react";
 import { toast } from "sonner";
 
 interface SalesListProps {
@@ -84,6 +84,39 @@ export function SalesList({
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [historyDate, setHistoryDate] = useState("");
   const [pendingSalesIds, setPendingSalesIds] = useState<number[]>([]);
+  const [todaySalesSearch, setTodaySalesSearch] = useState("");
+  const [cart, setCart] = useState<{ product: Product; quantity: number }[]>([]);
+
+  const addToCart = (product: Product) => {
+    setCart((prev) => {
+      const existing = prev.find((item) => item.product.id === product.id);
+      if (existing) {
+        toast.info(`${product.name} ya está en la lista`, {
+          description: "Puedes ajustar la cantidad al momento de procesar la venta.",
+        });
+        return prev;
+      }
+      toast.success(`${product.name} añadido a la lista`);
+      return [...prev, { product, quantity: 1 }];
+    });
+  };
+
+  const updateCartQuantity = (productId: number, quantity: number) => {
+    setCart((prev) =>
+      prev.map((item) => {
+        if (item.product.id === productId) {
+          const maxStock = item.product.stock;
+          const newQty = Math.max(1, Math.min(quantity, maxStock));
+          return { ...item, quantity: newQty };
+        }
+        return item;
+      })
+    );
+  };
+
+  const removeFromCart = (productId: number) => {
+    setCart((prev) => prev.filter((item) => item.product.id !== productId));
+  };
 
   useEffect(() => {
     try {
@@ -91,7 +124,7 @@ export function SalesList({
       if (stored) {
         setPendingSalesIds(JSON.parse(stored));
       }
-    } catch(e) {}
+    } catch (e) { }
   }, []);
 
   const togglePendingPayment = (saleId: number) => {
@@ -112,9 +145,19 @@ export function SalesList({
     return sales.filter(sale => {
       const d = new Date(sale.saleDate);
       const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      return ds === todayDateString;
+      const matchesDate = ds === todayDateString;
+      if (!matchesDate) return false;
+
+      const term = normalizeSearchValue(todaySalesSearch);
+      if (!term) return true;
+
+      return (
+        normalizeSearchValue(sale.product).includes(term) ||
+        normalizeSearchValue(sale.client?.nameComplete || "").includes(term) ||
+        String(sale.clientDni).includes(term)
+      );
     });
-  }, [sales, todayDateString]);
+  }, [sales, todayDateString, todaySalesSearch]);
 
   const historySales = useMemo(() => {
     if (!historyDate) return [];
@@ -157,17 +200,17 @@ export function SalesList({
       .map(({ client }) => client);
   }, [clients, isWalkInClient, saleClientSearch]);
 
-  const handleOpenSell = (product: Product) => {
-    setSellingProduct(product);
+  const handleOpenSell = () => {
+    if (cart.length === 0) return;
     setSaleClientDni("");
     setSaleClientSearch("");
     setIsWalkInClient(false);
-    setSaleQty(1);
+    setIsPendingPayment(false);
     setIsSelling(true);
   };
 
   const handleConfirmSell = async () => {
-    if (!sellingProduct || isSubmittingSale) return;
+    if (cart.length === 0 || isSubmittingSale) return;
     if (!isWalkInClient && !saleClientDni) return;
 
     setIsSubmittingSale(true);
@@ -176,39 +219,47 @@ export function SalesList({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          productId: sellingProduct.id,
+          items: cart.map(item => ({
+            productId: item.product.id,
+            quantity: item.quantity
+          })),
           clientDni: isWalkInClient ? null : saleClientDni,
           isWalkInClient,
-          quantity: saleQty,
         }),
       });
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || "Error creating sale");
+        throw new Error(err?.error || "Error al crear la venta");
       }
 
       const payload = await res.json();
-      if (payload?.product) {
-        onUpdateProduct(payload.product);
-      }
-      if (isPendingPayment && payload?.sale?.id) {
-        setPendingSalesIds(prev => {
-          const next = [...prev, payload.sale.id];
-          localStorage.setItem("gym_pending_sales", JSON.stringify(next));
-          return next;
+
+      // Update local products stock
+      if (payload?.items) {
+        payload.items.forEach((item: any) => {
+          if (item.product) {
+            onUpdateProduct(item.product);
+          }
+          if (isPendingPayment && item.sale?.id) {
+            setPendingSalesIds(prev => {
+              const next = [...prev, item.sale.id];
+              localStorage.setItem("gym_pending_sales", JSON.stringify(next));
+              return next;
+            });
+          }
         });
       }
 
       setIsSelling(false);
-      setSellingProduct(null);
+      setCart([]);
       setSaleClientDni("");
       setSaleClientSearch("");
       setIsWalkInClient(false);
       setIsPendingPayment(false);
       onSaleRecorded();
       toast.success("Venta registrada", {
-        description: "El stock y la venta se actualizaron correctamente.",
+        description: "El stock y las ventas se actualizaron correctamente.",
       });
     } catch (error) {
       console.error("Error registrando venta:", error);
@@ -237,14 +288,56 @@ export function SalesList({
                 </CardDescription>
               </div>
             </div>
-            <div className="relative sm:w-72">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Buscar producto..."
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-                className="h-10 rounded-xl border-0 bg-secondary/50 pl-9 text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/20"
-              />
+            <div className="flex flex-col sm:flex-row items-center gap-2">
+              {cart.length > 0 && (
+                <div className="flex items-center gap-4 rounded-2xl bg-gradient-to-r from-primary/20 to-primary/5 pl-5 pr-2.5 py-2.5 border border-primary/30 shadow-2xl shadow-primary/10 animate-in fade-in slide-in-from-top-4 duration-500 backdrop-blur-md">
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <div className="absolute -inset-1 bg-primary/20 rounded-full blur animate-pulse" />
+                      <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg">
+                        <ShoppingCart className="h-5 w-5" />
+                      </div>
+                    </div>
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] uppercase font-black text-primary tracking-[0.2em] leading-none">Venta en curso</span>
+                        <Badge variant="secondary" className="h-4 px-1.5 text-[9px] font-bold bg-primary/20 text-primary border-0">
+                          {cart.length}
+                        </Badge>
+                      </div>
+                      <span className="text-lg font-black text-foreground leading-tight">
+                        S/ {cart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 border-l border-primary/20 pl-4 ml-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setCart([])}
+                      className="h-10 w-10 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all hover:rotate-12"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </Button>
+                    <Button
+                      onClick={handleOpenSell}
+                      className="h-10 px-6 text-sm font-black bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-[0_8px_16px_-6px_rgba(var(--primary),0.5)] transition-all hover:scale-105 active:scale-95 flex gap-2"
+                    >
+                      <span>Finalizar Venta</span>
+                      <Check className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+              <div className="relative sm:w-64">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar producto..."
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                  className="h-10 rounded-xl border-0 bg-secondary/50 pl-9 text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/20"
+                />
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -304,11 +397,14 @@ export function SalesList({
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleOpenSell(product)}
+                        onClick={() => addToCart(product)}
                         disabled={product.stock <= 0}
-                        className="h-8 rounded-lg px-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                        className={`h-8 rounded-lg px-2 transition-all ${cart.some(item => item.product.id === product.id)
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                          }`}
                       >
-                        Vender
+                        {cart.some(item => item.product.id === product.id) ? "En lista" : "Vender"}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -349,6 +445,17 @@ export function SalesList({
               </Button>
             </div>
           </div>
+          <div className="px-6 pb-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Filtrar ventas de hoy..."
+                value={todaySalesSearch}
+                onChange={(e) => setTodaySalesSearch(e.target.value)}
+                className="h-8 rounded-lg border-0 bg-secondary/50 pl-8 text-xs text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/10"
+              />
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="max-h-[420px] space-y-3 overflow-y-auto pr-2">
@@ -372,11 +479,10 @@ export function SalesList({
                     </p>
                     <button
                       onClick={() => togglePendingPayment(sale.id)}
-                      className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${
-                        pendingSalesIds.includes(sale.id) 
-                          ? "bg-destructive/15 text-destructive hover:bg-destructive/25" 
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${pendingSalesIds.includes(sale.id)
+                          ? "bg-destructive/15 text-destructive hover:bg-destructive/25"
                           : "bg-success/15 text-success hover:bg-success/25"
-                      }`}
+                        }`}
                     >
                       {pendingSalesIds.includes(sale.id) ? "Falta cancelar" : "Pagado"}
                     </button>
@@ -403,8 +509,46 @@ export function SalesList({
           </DialogHeader>
           <div className="space-y-4">
             <div className="rounded-lg bg-secondary/50 p-3">
-              <p className="text-sm text-muted-foreground">Producto</p>
-              <p className="text-sm font-medium">{sellingProduct?.name}</p>
+              <p className="text-sm font-semibold mb-2">Resumen de productos</p>
+              <div className="space-y-2 max-h-[150px] overflow-y-auto pr-1">
+                {cart.map((item) => (
+                  <div key={item.product.id} className="flex items-center justify-between gap-2 rounded-md bg-background/50 p-2 text-sm">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{item.product.name}</p>
+                      <p className="text-xs text-muted-foreground">S/ {item.product.price} c/u</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center bg-secondary rounded-lg overflow-hidden">
+                        <button
+                          onClick={() => updateCartQuantity(item.product.id, item.quantity - 1)}
+                          className="p-1 hover:bg-primary/20 transition-colors"
+                        >
+                          <Minus className="h-3 w-3" />
+                        </button>
+                        <span className="w-8 text-center text-xs font-bold">{item.quantity}</span>
+                        <button
+                          onClick={() => updateCartQuantity(item.product.id, item.quantity + 1)}
+                          className="p-1 hover:bg-primary/20 transition-colors"
+                        >
+                          <Plus className="h-3 w-3" />
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => removeFromCart(item.product.id)}
+                        className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 pt-3 border-t flex justify-between items-center">
+                <span className="text-sm font-medium">Total</span>
+                <span className="text-lg font-bold text-primary">
+                  S/ {cart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0).toLocaleString()}
+                </span>
+              </div>
             </div>
             <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
@@ -481,17 +625,6 @@ export function SalesList({
                   Falta cancelar (Debe)
                 </label>
               </div>
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">Cantidad</p>
-                <Input
-                  type="number"
-                  min={1}
-                  max={sellingProduct?.stock || undefined}
-                  value={saleQty}
-                  onChange={(e) => setSaleQty(Number(e.target.value))}
-                  className="h-11 rounded-lg bg-secondary/50"
-                />
-              </div>
             </div>
           </div>
           <DialogFooter>
@@ -502,10 +635,8 @@ export function SalesList({
               onClick={handleConfirmSell}
               disabled={
                 isSubmittingSale ||
-                !sellingProduct ||
-                (!isWalkInClient && !saleClientDni) ||
-                saleQty <= 0 ||
-                saleQty > (sellingProduct?.stock || 0)
+                cart.length === 0 ||
+                (!isWalkInClient && !saleClientDni)
               }
             >
               {isSubmittingSale && <ButtonSpinner />}
@@ -545,22 +676,21 @@ export function SalesList({
                           : sale.client?.nameComplete || `DNI ${sale.clientDni}`}
                       </p>
                     </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <p className="whitespace-nowrap font-semibold text-foreground">
-                      S/ {sale.amount.toLocaleString()}
-                    </p>
-                    <button
-                      onClick={() => togglePendingPayment(sale.id)}
-                      className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${
-                        pendingSalesIds.includes(sale.id) 
-                          ? "bg-destructive/15 text-destructive hover:bg-destructive/25" 
-                          : "bg-success/15 text-success hover:bg-success/25"
-                      }`}
-                    >
-                      {pendingSalesIds.includes(sale.id) ? "Falta cancelar" : "Pagado"}
-                    </button>
+                    <div className="flex flex-col items-end gap-1">
+                      <p className="whitespace-nowrap font-semibold text-foreground">
+                        S/ {sale.amount.toLocaleString()}
+                      </p>
+                      <button
+                        onClick={() => togglePendingPayment(sale.id)}
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${pendingSalesIds.includes(sale.id)
+                            ? "bg-destructive/15 text-destructive hover:bg-destructive/25"
+                            : "bg-success/15 text-success hover:bg-success/25"
+                          }`}
+                      >
+                        {pendingSalesIds.includes(sale.id) ? "Falta cancelar" : "Pagado"}
+                      </button>
+                    </div>
                   </div>
-                </div>
                   <p className="mt-2 text-xs text-muted-foreground">
                     {formatSaleDate(sale.saleDate)}
                   </p>
