@@ -50,8 +50,8 @@ export function ClientsList({ clients, onUpdateClient, onAddClient, onAttendance
 
     setIsSaving(true)
     try {
-      const dni = String(client.dni || '')
-      const res = await fetch(editingClient ? `/api/clients/${dni}` : '/api/clients', {
+      const targetDni = editingClient ? String(editingClient.dni) : String(client.dni || '')
+      const res = await fetch(editingClient ? `/api/clients/${targetDni}` : '/api/clients', {
         method: editingClient ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
