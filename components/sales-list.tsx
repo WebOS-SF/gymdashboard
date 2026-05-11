@@ -81,6 +81,11 @@ export function SalesList({
   const [saleQty, setSaleQty] = useState(1);
   const [isSubmittingSale, setIsSubmittingSale] = useState(false);
   const [isPendingPayment, setIsPendingPayment] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState("Efectivo");
+  const [settlingSale, setSettlingSale] = useState<ProductSale | null>(null);
+  const [isSettling, setIsSettling] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<{ clientDni: number, clientName: string, items: ProductSale[] } | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [historyDate, setHistoryDate] = useState("");
   const [pendingSalesIds, setPendingSalesIds] = useState<number[]>([]);
@@ -127,13 +132,52 @@ export function SalesList({
     } catch (e) { }
   }, []);
 
-  const togglePendingPayment = (saleId: number) => {
-    setPendingSalesIds(prev => {
-      const isPending = prev.includes(saleId);
-      const next = isPending ? prev.filter(id => id !== saleId) : [...prev, saleId];
-      localStorage.setItem("gym_pending_sales", JSON.stringify(next));
-      return next;
-    });
+  const togglePendingPayment = async (sale: ProductSale) => {
+    const isCurrentlyPending = !sale.isPaid;
+    
+    if (isCurrentlyPending) {
+      // Si está pendiente y queremos marcar como pagada, pedir método de pago
+      setSettlingSale(sale);
+      setIsSettling(true);
+    } else {
+      // Si ya está pagada y queremos marcar como deuda (poco común pero posible)
+      try {
+        const res = await fetch(`/api/sales/${sale.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isPaid: false, paymentMethod: "Pendiente" }),
+        });
+        if (res.ok) onSaleRecorded();
+      } catch (e) {
+        toast.error("Error al actualizar estado");
+      }
+    }
+  };
+
+  const handleConfirmSettle = async (method: string) => {
+    if (!settlingSale || isSubmittingSale) return;
+
+    setIsSubmittingSale(true);
+    try {
+      const res = await fetch(`/api/sales/${settlingSale.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPaid: true, paymentMethod: method }),
+      });
+
+      if (!res.ok) throw new Error("Error al liquidar deuda");
+
+      toast.success("Venta liquidada", {
+        description: `Se registró el pago por ${method}.`,
+      });
+      setIsSettling(false);
+      setSettlingSale(null);
+      onSaleRecorded();
+    } catch (error) {
+      toast.error("No se pudo actualizar el pago");
+    } finally {
+      setIsSubmittingSale(false);
+    }
   };
 
   const todayDateString = useMemo(() => {
@@ -167,6 +211,66 @@ export function SalesList({
       return ds === historyDate;
     });
   }, [sales, historyDate]);
+
+  const groupedTodaySales = useMemo(() => {
+    const groups: Record<string, { clientDni: number, clientName: string, items: ProductSale[], total: number, isPaid: boolean }> = {};
+    
+    todaySales.forEach(sale => {
+      const key = `${sale.clientDni}`;
+      if (!groups[key]) {
+        groups[key] = {
+          clientDni: sale.clientDni,
+          clientName: sale.clientDni === 0 ? "Cliente espontáneo" : sale.client?.nameComplete || `DNI ${sale.clientDni}`,
+          items: [],
+          total: 0,
+          isPaid: true,
+          lastActivity: sale.saleDate,
+          paymentMethod: sale.paymentMethod
+        };
+      }
+      groups[key].items.push(sale);
+      groups[key].total += sale.amount;
+      if (!sale.isPaid) groups[key].isPaid = false;
+      if (new Date(sale.saleDate) > new Date(groups[key].lastActivity)) {
+        groups[key].lastActivity = sale.saleDate;
+        groups[key].paymentMethod = sale.paymentMethod;
+      }
+    });
+
+    return Object.values(groups).sort((a, b) => {
+      const latestA = Math.max(...a.items.map(i => new Date(i.saleDate).getTime()));
+      const latestB = Math.max(...b.items.map(i => new Date(i.saleDate).getTime()));
+      return latestB - latestA;
+    });
+  }, [todaySales]);
+
+  const groupedHistorySales = useMemo(() => {
+    const groups: Record<string, { clientDni: number, clientName: string, items: ProductSale[], total: number, isPaid: boolean }> = {};
+    
+    historySales.forEach(sale => {
+      const key = `${sale.clientDni}`;
+      if (!groups[key]) {
+        groups[key] = {
+          clientDni: sale.clientDni,
+          clientName: sale.clientDni === 0 ? "Cliente espontáneo" : sale.client?.nameComplete || `DNI ${sale.clientDni}`,
+          items: [],
+          total: 0,
+          isPaid: true,
+          lastActivity: sale.saleDate,
+          paymentMethod: sale.paymentMethod
+        };
+      }
+      groups[key].items.push(sale);
+      groups[key].total += sale.amount;
+      if (!sale.isPaid) groups[key].isPaid = false;
+      if (new Date(sale.saleDate) > new Date(groups[key].lastActivity)) {
+        groups[key].lastActivity = sale.saleDate;
+        groups[key].paymentMethod = sale.paymentMethod;
+      }
+    });
+
+    return Object.values(groups);
+  }, [historySales]);
 
   const handleOpenHistory = () => {
     setHistoryDate(todayDateString);
@@ -206,6 +310,7 @@ export function SalesList({
     setSaleClientSearch("");
     setIsWalkInClient(false);
     setIsPendingPayment(false);
+    setPaymentMethod("Efectivo");
     setIsSelling(true);
   };
 
@@ -225,6 +330,8 @@ export function SalesList({
           })),
           clientDni: isWalkInClient ? null : saleClientDni,
           isWalkInClient,
+          paymentMethod: isPendingPayment ? "Pendiente" : paymentMethod,
+          isPendingPayment,
         }),
       });
 
@@ -257,6 +364,7 @@ export function SalesList({
       setSaleClientSearch("");
       setIsWalkInClient(false);
       setIsPendingPayment(false);
+      setPaymentMethod("Efectivo");
       onSaleRecorded();
       toast.success("Venta registrada", {
         description: "El stock y las ventas se actualizaron correctamente.",
@@ -437,7 +545,7 @@ export function SalesList({
               <div>
                 <CardTitle className="text-foreground">Ventas de hoy</CardTitle>
                 <CardDescription className="text-muted-foreground">
-                  {todaySales.length} ventas registradas hoy
+                  {groupedTodaySales.length} clientes atendidos hoy
                 </CardDescription>
               </div>
               <Button variant="link" className="text-primary text-sm p-0 h-auto" onClick={handleOpenHistory}>
@@ -459,41 +567,60 @@ export function SalesList({
         </CardHeader>
         <CardContent>
           <div className="max-h-[420px] space-y-3 overflow-y-auto pr-2">
-            {todaySales.map((sale) => (
+            {groupedTodaySales.map((group) => (
               <div
-                key={sale.id}
-                className="rounded-lg bg-secondary/40 p-3 transition-colors hover:bg-secondary/60"
+                key={group.clientDni}
+                onClick={() => {
+                  setSelectedGroup(group);
+                  setIsDetailOpen(true);
+                }}
+                className="group cursor-pointer rounded-2xl bg-secondary/30 p-4 transition-all hover:bg-secondary/50 border border-transparent hover:border-border/50"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-foreground">{sale.product}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {sale.clientDni === 0
-                        ? "Cliente espontáneo"
-                        : sale.client?.nameComplete || `DNI ${sale.clientDni}`}
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-black text-foreground uppercase tracking-tight text-lg">{group.clientName}</h3>
+                      {group.isPaid && group.paymentMethod && (
+                        <Badge 
+                          variant="secondary" 
+                          className={`h-5 px-2 text-[10px] font-bold border-0 rounded-lg ${
+                            group.paymentMethod === 'Efectivo' ? 'bg-[#26DE81]/15 text-[#26DE81]' :
+                            group.paymentMethod === 'Plin' ? 'bg-[#5B8DEF]/15 text-[#5B8DEF]' :
+                            'bg-[#9B6DD7]/15 text-[#9B6DD7]'
+                          }`}
+                        >
+                          {group.paymentMethod}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground font-medium">
+                      {group.items.length} producto{group.items.length !== 1 ? 's' : ''} consumidos
                     </p>
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <p className="whitespace-nowrap font-semibold text-foreground">
-                      S/ {sale.amount.toLocaleString()}
+                  <div className="flex flex-col items-end gap-2">
+                    <p className="whitespace-nowrap font-black text-2xl text-foreground italic">
+                      S/ {group.total.toLocaleString()}
                     </p>
-                    <button
-                      onClick={() => togglePendingPayment(sale.id)}
-                      className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${pendingSalesIds.includes(sale.id)
-                          ? "bg-destructive/15 text-destructive hover:bg-destructive/25"
-                          : "bg-success/15 text-success hover:bg-success/25"
-                        }`}
-                    >
-                      {pendingSalesIds.includes(sale.id) ? "Falta cancelar" : "Pagado"}
-                    </button>
+                    <div className={`text-[10px] px-3 py-1 rounded-lg font-bold uppercase tracking-wider ${!group.isPaid
+                          ? "bg-destructive/15 text-destructive border border-destructive/20"
+                          : "bg-success/15 text-success border border-success/20"
+                        }`}>
+                      {!group.isPaid ? "Falta cancelar" : "Pagado"}
+                    </div>
                   </div>
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {formatSaleDate(sale.saleDate)}
-                </p>
+                
+                <div className="flex items-center justify-between pt-3 border-t border-border/10">
+                  <p className="text-[11px] text-muted-foreground">
+                    Última actividad: {formatSaleDate(group.lastActivity)}
+                  </p>
+                  <span className="text-[11px] font-bold text-destructive hover:underline flex items-center gap-1 transition-all group-hover:gap-2">
+                    Ver detalle <span className="text-lg leading-none">→</span>
+                  </span>
+                </div>
               </div>
             ))}
-            {todaySales.length === 0 && (
+            {groupedTodaySales.length === 0 && (
               <div className="rounded-lg bg-secondary/30 py-10 text-center text-sm text-muted-foreground">
                 No hay ventas registradas hoy
               </div>
@@ -625,6 +752,28 @@ export function SalesList({
                   Falta cancelar (Debe)
                 </label>
               </div>
+
+              {!isPendingPayment && (
+                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <p className="text-sm text-muted-foreground">Método de pago</p>
+                  <div className="flex flex-wrap gap-2">
+                    {["Efectivo", "Plin", "Yape"].map((method) => (
+                      <button
+                        key={method}
+                        type="button"
+                        onClick={() => setPaymentMethod(method)}
+                        className={`flex-1 h-10 px-4 rounded-xl text-sm font-medium transition-all border ${
+                          paymentMethod === method
+                            ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20"
+                            : "bg-secondary/50 text-muted-foreground border-transparent hover:bg-secondary"
+                        }`}
+                      >
+                        {method}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -662,45 +811,129 @@ export function SalesList({
               />
             </div>
             <div className="max-h-[300px] space-y-3 overflow-y-auto pr-2">
-              {historySales.map((sale) => (
+              {groupedHistorySales.map((group) => (
                 <div
-                  key={sale.id}
-                  className="rounded-lg bg-secondary/40 p-3 transition-colors hover:bg-secondary/60"
+                  key={group.clientDni}
+                  onClick={() => {
+                    setSelectedGroup(group);
+                    setIsDetailOpen(true);
+                  }}
+                  className="cursor-pointer rounded-lg bg-secondary/40 p-3 transition-colors hover:bg-secondary/60"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-medium text-foreground">{sale.product}</p>
+                      <p className="font-medium text-foreground">{group.clientName}</p>
                       <p className="text-xs text-muted-foreground">
-                        {sale.clientDni === 0
-                          ? "Cliente espontáneo"
-                          : sale.client?.nameComplete || `DNI ${sale.clientDni}`}
+                        {group.items.length} producto{group.items.length !== 1 ? 's' : ''} consumidos
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       <p className="whitespace-nowrap font-semibold text-foreground">
-                        S/ {sale.amount.toLocaleString()}
+                        S/ {group.total.toLocaleString()}
                       </p>
-                      <button
-                        onClick={() => togglePendingPayment(sale.id)}
-                        className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${pendingSalesIds.includes(sale.id)
-                            ? "bg-destructive/15 text-destructive hover:bg-destructive/25"
-                            : "bg-success/15 text-success hover:bg-success/25"
-                          }`}
-                      >
-                        {pendingSalesIds.includes(sale.id) ? "Falta cancelar" : "Pagado"}
-                      </button>
+                      <div className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${!group.isPaid
+                            ? "bg-destructive/15 text-destructive"
+                            : "bg-success/15 text-success"
+                          }`}>
+                        {!group.isPaid ? "Falta cancelar" : "Pagado"}
+                      </div>
                     </div>
                   </div>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {formatSaleDate(sale.saleDate)}
-                  </p>
                 </div>
               ))}
-              {historySales.length === 0 && (
+              {groupedHistorySales.length === 0 && (
                 <div className="rounded-lg bg-secondary/30 py-10 text-center text-sm text-muted-foreground">
                   No hay ventas en esta fecha
                 </div>
               )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isSettling} onOpenChange={setIsSettling}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Liquidar deuda</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="text-center space-y-1">
+              <p className="text-sm text-muted-foreground">Producto: <span className="text-foreground font-medium">{settlingSale?.product}</span></p>
+              <p className="text-2xl font-black text-primary">S/ {settlingSale?.amount.toLocaleString()}</p>
+            </div>
+            
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-center">¿Cómo canceló el cliente?</p>
+              <div className="grid grid-cols-1 gap-2">
+                {["Efectivo", "Plin", "Yape"].map((method) => (
+                  <Button
+                    key={method}
+                    variant="outline"
+                    onClick={() => handleConfirmSettle(method)}
+                    disabled={isSubmittingSale}
+                    className="h-12 rounded-xl border-secondary bg-secondary/30 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all font-bold"
+                  >
+                    {method}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Consumo de {selectedGroup?.clientName}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+              {selectedGroup?.items.map((sale) => (
+                <div key={sale.id} className="flex items-center justify-between p-3 rounded-xl bg-secondary/30">
+                  <div>
+                    <p className="text-sm font-medium">{sale.product}</p>
+                    <p className="text-[10px] text-muted-foreground">{formatSaleDate(sale.saleDate)}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-sm font-bold">S/ {sale.amount.toLocaleString()}</p>
+                      {sale.isPaid && (
+                        <Badge 
+                          variant="secondary" 
+                          className={`h-4 px-1.5 text-[9px] font-bold border-0 ${
+                            sale.paymentMethod === 'Efectivo' ? 'bg-[#26DE81]/15 text-[#26DE81]' :
+                            sale.paymentMethod === 'Plin' ? 'bg-[#5B8DEF]/15 text-[#5B8DEF]' :
+                            'bg-[#9B6DD7]/15 text-[#9B6DD7]'
+                          }`}
+                        >
+                          {sale.paymentMethod}
+                        </Badge>
+                      )}
+                    </div>
+                    {!sale.isPaid && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => togglePendingPayment(sale)}
+                        className="h-7 text-[10px] bg-destructive/15 text-destructive hover:bg-destructive/25 rounded-full"
+                      >
+                        Cobrar
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div className="pt-4 border-t flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase font-black tracking-wider">Total consumido</p>
+                <p className="text-2xl font-black text-primary">S/ {selectedGroup?.total.toLocaleString()}</p>
+              </div>
+              <Button variant="outline" onClick={() => setIsDetailOpen(false)} className="rounded-xl">
+                Cerrar
+              </Button>
             </div>
           </div>
         </DialogContent>

@@ -111,6 +111,8 @@ export async function POST(req: Request) {
             amount: product.price * quantity,
             saleDate: new Date(),
             clientDni,
+            paymentMethod: body.paymentMethod || "Efectivo",
+            isPaid: body.isPendingPayment !== true,
             soldById: persistedUserId,
           },
         })

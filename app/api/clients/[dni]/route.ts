@@ -62,12 +62,20 @@ export async function PUT(
       return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 })
     }
 
+    const newDni = body.dni ? Number(body.dni) : numericDni;
+
+    const dataToUpdate: any = {
+      nameComplete: body.name || previousClient.nameComplete,
+      phone: typeof body.phone !== "undefined" ? body.phone || null : previousClient.phone,
+    };
+
+    if (newDni !== numericDni && numericDni < 0) {
+      dataToUpdate.dni = newDni;
+    }
+
     const result = await prisma.client.update({
       where: { dni: numericDni },
-      data: {
-        nameComplete: body.name || previousClient.nameComplete,
-        phone: typeof body.phone !== "undefined" ? body.phone || null : previousClient.phone,
-      },
+      data: dataToUpdate,
       include: {
         plans: {
           orderBy: {

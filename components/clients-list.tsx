@@ -7,10 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Search, Plus, Edit2, Users, Filter, CheckCircle2, XCircle, CircleDot, CalendarDays } from 'lucide-react'
-import { Client, AttendanceStatus } from '@/lib/types'
+import { Client, AttendanceStatus, Weekday } from '@/lib/types'
 import { ClientModal } from './client-modal'
 import { AttendanceCalendarModal } from './attendance-calendar-modal'
 import { toast } from 'sonner'
+import { getTodayWeekday } from '@/lib/client-utils'
 
 interface ClientsListProps {
   clients: Client[]
@@ -214,23 +215,35 @@ export function ClientsList({ clients, onUpdateClient, onAddClient, onAttendance
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground font-mono text-sm">{client.dni}</TableCell>
+                    <TableCell className="text-muted-foreground font-mono text-sm">
+                      {client.dni < 0 ? <Badge variant="secondary" className="font-normal text-[10px] bg-secondary/50">Pago por día</Badge> : client.dni}
+                    </TableCell>
                     <TableCell className="hidden lg:table-cell text-muted-foreground">{client.phone || '-'}</TableCell>
                     <TableCell className="hidden xl:table-cell text-muted-foreground">{client.memberSince || client.joinDate}</TableCell>
                     <TableCell>{getStatusBadge(client)}</TableCell>
                     <TableCell className="text-center">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleAttendance(client)}
-                        className="h-8 w-8 rounded-lg hover:bg-secondary"
-                        title={
-                          client.todayAttendance === 'PRESENT' ? 'Presente' :
-                          client.todayAttendance === 'ABSENT' ? 'Ausente' : 'Sin registro'
-                        }
-                      >
-                        {getAttendanceIcon(client.todayAttendance)}
-                      </Button>
+                      {(() => {
+                        const today = getTodayWeekday()
+                        const isScheduledToday = client.attendanceDays?.includes(today)
+                        const canMarkAttendance = isScheduledToday || client.status === 'active'
+
+                        return (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={!isScheduledToday}
+                            onClick={() => handleAttendance(client)}
+                            className={`h-8 w-8 rounded-lg ${!isScheduledToday ? 'opacity-20 grayscale' : 'hover:bg-secondary'}`}
+                            title={
+                              !isScheduledToday ? `Hoy (${today}) no corresponde a su plan` :
+                              client.todayAttendance === 'PRESENT' ? 'Presente' :
+                              client.todayAttendance === 'ABSENT' ? 'Ausente' : 'Marcar asistencia'
+                            }
+                          >
+                            {getAttendanceIcon(client.todayAttendance)}
+                          </Button>
+                        )
+                      })()}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button

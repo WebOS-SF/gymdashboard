@@ -46,14 +46,26 @@ export const weekdayLabels: Record<Weekday, string> = {
 export const durationUnitLabels: Record<string, string> = {
   day: "dia",
   month: "mes",
+  week: "semana",
+  year: "año",
 }
 
 export function normalizePlanTier(planTier: unknown): PlanTier {
   const value = String(planTier || "basic").trim().toLowerCase()
-  if (value === "interdiario") return "interdiario"
-  if (value === "diario") return "diario"
-  if (value === "por_dia") return "por_dia"
+  if (value.includes("interdiario") || value.includes("inter")) return "interdiario"
+  if (value.includes("diario") || value.includes("daily") || value.includes("completo")) return "diario"
+  if (value.includes("por_dia") || value.includes("pago por dia") || value.includes("dia")) return "por_dia"
+  if (value.includes("basic") || value.includes("basico") || value.includes("clasico")) return "basic"
   return "basic"
+}
+
+export function normalizeDurationUnit(unit: unknown): DurationUnit {
+  const value = String(unit || "month").trim().toLowerCase()
+  if (value === "day" || value === "dia") return "day"
+  if (value === "week" || value === "semana") return "week"
+  if (value === "month" || value === "mes" || value === "meses") return "month"
+  if (value === "year" || value === "año") return "year"
+  return "month"
 }
 
 export function normalizeClientStatus(status: unknown): ClientStatus {
@@ -107,13 +119,14 @@ export function normalizeTurn(turn: unknown) {
 }
 
 function toIsoDate(date: Date) {
-  return date.toISOString().split("T")[0]
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, "0")
+  const d = String(date.getDate()).padStart(2, "0")
+  return `${y}-${m}-${d}`
 }
 
 function startOfDay(date: Date) {
-  const next = new Date(date)
-  next.setHours(0, 0, 0, 0)
-  return next
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
 }
 
 export function addDuration(startDate: Date, durationValue: number, durationUnit: DurationUnit) {
@@ -126,8 +139,12 @@ export function addDuration(startDate: Date, durationValue: number, durationUnit
   } else if (durationUnit === "month") {
     endDate.setMonth(endDate.getMonth() + durationValue)
     endDate.setDate(endDate.getDate() - 1)
-  } else {
+  } else if (durationUnit === "year") {
     endDate.setFullYear(endDate.getFullYear() + durationValue)
+    endDate.setDate(endDate.getDate() - 1)
+  } else {
+    // Default to month to avoid explosive duration jumps
+    endDate.setMonth(endDate.getMonth() + durationValue)
     endDate.setDate(endDate.getDate() - 1)
   }
 
@@ -136,6 +153,14 @@ export function addDuration(startDate: Date, durationValue: number, durationUnit
 
 function getWeekday(date: Date): Weekday {
   const index = date.getDay()
+  return weekdayOrder[(index + 6) % 7]
+}
+
+export function getTodayWeekday(): Weekday {
+  const now = new Date()
+  // Ajustar a la zona horaria de Perú (UTC-5) para determinar el día correcto
+  const peruTime = new Date(now.getTime() - (5 * 60 * 60 * 1000))
+  const index = peruTime.getUTCDay() // 0=Dom, 1=Lun, ...
   return weekdayOrder[(index + 6) % 7]
 }
 
@@ -180,8 +205,14 @@ export function calculatePlanPrice(input: {
   const { planTier, startDate, durationValue, durationUnit, attendanceDays } = input
   const endDate = addDuration(startDate, durationValue, durationUnit)
   const isFullSchedule = attendanceDays.length === weekdayOrder.length
-  const sessionCount = countSessionsBetween(startDate, endDate, attendanceDays)
-  const prices = planTierPrices[planTier]
+  let sessionCount = countSessionsBetween(startDate, endDate, attendanceDays)
+  
+  // For single day plans, ensure at least 1 session if the day is not specified correctly
+  if (durationValue === 1 && durationUnit === "day" && sessionCount === 0) {
+    sessionCount = 1
+  }
+
+  const prices = planTierPrices[planTier] || planTierPrices.basic
 
   let pricingMode = "per_day"
   let totalPrice = sessionCount * (prices.day || 8)
@@ -194,13 +225,13 @@ export function calculatePlanPrice(input: {
     totalPrice = durationValue * 80
   } else if (planTier === "por_dia") {
     pricingMode = "fixed_day"
-    totalPrice = sessionCount * 8
+    totalPrice = Math.max(1, sessionCount) * 8
+  } else if (durationUnit === "month" && prices.month) {
+    pricingMode = "full_month"
+    totalPrice = durationValue * prices.month
   } else if (isFullSchedule && durationUnit === "week" && prices.week) {
     pricingMode = "full_week"
     totalPrice = durationValue * prices.week
-  } else if (isFullSchedule && durationUnit === "month" && prices.month) {
-    pricingMode = "full_month"
-    totalPrice = durationValue * prices.month
   } else if (isFullSchedule && durationUnit === "year" && prices.year) {
     pricingMode = "full_year"
     totalPrice = durationValue * prices.year
@@ -264,9 +295,9 @@ export function deriveClientStatus(input: {
 }
 
 export function buildPlanName(planTier: PlanTier, durationValue: number, durationUnit: DurationUnit, attendanceDays: Weekday[]) {
-  const unit = durationUnitLabels[durationUnit]
+  const unit = durationUnitLabels[durationUnit] || durationUnit
   const amountLabel = `${durationValue} ${unit}${durationValue === 1 ? "" : durationUnit === "month" ? "es" : "s"}`
-  return `${planTierLabels[planTier]} · ${amountLabel} · ${formatAttendanceLabel(attendanceDays)}`
+  return `${planTierLabels[planTier] || planTier} · ${amountLabel} · ${formatAttendanceLabel(attendanceDays)}`
 }
 
 export function buildPlanPayload(input: {
@@ -418,7 +449,7 @@ export function formatClient(client: {
       startDate: toIsoDate(plan.startDate),
       endDate: toIsoDate(plan.endDate),
       durationValue: plan.durationValue,
-      durationUnit: plan.durationUnit as DurationUnit,
+      durationUnit: normalizeDurationUnit(plan.durationUnit),
       attendanceDays: normalizeWeekdays(plan.attendanceDays),
       attendanceLabel: plan.attendanceLabel,
       pricingMode: plan.pricingMode,

@@ -209,7 +209,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
         ) : viewMode === 'plans' ? (
           <PlansList
             clients={clients}
-            canViewMoney={true}
+            canViewMoney={isSuperadmin}
             onClientsChange={handleSetClients}
           />
         ) : viewMode === 'products' && isSuperadmin ? (

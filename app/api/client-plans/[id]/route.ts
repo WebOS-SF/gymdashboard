@@ -35,9 +35,13 @@ export async function PUT(
       return NextResponse.json({ error: "Plan no encontrado" }, { status: 404 })
     }
 
+    const startDateInput = body.joinDate || (existingPlan.startDate ? new Date(existingPlan.startDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0])
+    const [y, m, d] = startDateInput.split('-').map(Number)
+    const startDate = new Date(y, m - 1, d)
+
     const computedPlan = buildPlanPayload({
       planTier: body.planTier || existingPlan.planTier,
-      startDate: body.joinDate ? new Date(body.joinDate) : existingPlan.startDate,
+      startDate,
       durationValue: Number(body.durationValue || existingPlan.durationValue || 1),
       durationUnit: body.durationUnit || existingPlan.durationUnit || "month",
       attendanceDays: body.attendanceDays || existingPlan.attendanceDays,

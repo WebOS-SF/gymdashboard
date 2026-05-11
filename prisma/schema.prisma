@@ -14,7 +14,7 @@ model Product {
   stock       Int
   category    String
   createdById Int?
-  createdBy   AdminAccount? @relation("ProductsCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy   AdminAccount? @relation("ProductsCreated", fields: [createdById], references: [id])
 }
 
 model AdminAccount {
@@ -27,74 +27,76 @@ model AdminAccount {
   updatedAt             DateTime       @updatedAt
   clientsCreated        Client[]       @relation("ClientsCreated")
   clientPlansCreated    ClientPlan[]   @relation("ClientPlansCreated")
+  notificationsCreated  Notification[] @relation("NotificationsCreated")
+  notificationsReceived Notification[] @relation("NotificationsReceived")
   productsCreated       Product[]      @relation("ProductsCreated")
   salesRecorded         SalesRecord[]  @relation("SalesRecorded")
-  notificationsReceived Notification[] @relation("NotificationsReceived")
-  notificationsCreated  Notification[] @relation("NotificationsCreated")
 }
 
 model Client {
   dni           Int           @id
   nameComplete  String
   joinDate      DateTime
-  phone         String?
   fee           Float
   mode          String
   paymentMethod String
   turn          String
   debt          Float         @default(0)
   status        String        @default("active")
+  phone         String?
+  createdById   Int?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
-  createdById   Int?
-  createdBy     AdminAccount? @relation("ClientsCreated", fields: [createdById], references: [id], onDelete: SetNull)
   appointments  Appointment[]
   attendances   Attendance[]
   boletas       Boleta[]
+  createdBy     AdminAccount? @relation("ClientsCreated", fields: [createdById], references: [id])
   plans         ClientPlan[]
   sales         SalesRecord[]
 }
 
 model ClientPlan {
-  id               Int           @id @default(autoincrement())
-  clientDni        Int
-  planTier         String
-  name             String
-  startDate        DateTime
-  endDate          DateTime
-  durationValue    Int
-  durationUnit     String
-  attendanceDays   String[]
-  attendanceLabel  String
-  pricingMode      String
-  sessionCount     Int
-  totalPrice       Float
-  amountPaid       Float
-  debt             Float         @default(0)
-  paymentState     String
-  paymentSeverity  String        @default("none")
-  paymentMethod    String
-  turn             String
-  status           String        @default("active")
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  createdById      Int?
-  createdBy        AdminAccount? @relation("ClientPlansCreated", fields: [createdById], references: [id], onDelete: SetNull)
-  client           Client        @relation(fields: [clientDni], references: [dni], onDelete: Cascade)
+  id              Int           @id @default(autoincrement())
+  clientDni       Int
+  name            String
+  startDate       DateTime
+  endDate         DateTime
+  durationValue   Int
+  durationUnit    String
+  attendanceDays  String[]
+  attendanceLabel String
+  pricingMode     String
+  sessionCount    Int
+  totalPrice      Float
+  amountPaid      Float
+  debt            Float         @default(0)
+  paymentState    String
+  paymentSeverity String        @default("none")
+  paymentMethod   String
+  turn            String
+  status          String        @default("active")
+  planTier        String
+  createdById     Int?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  client          Client        @relation(fields: [clientDni], references: [dni], onDelete: Cascade)
+  createdBy       AdminAccount? @relation("ClientPlansCreated", fields: [createdById], references: [id])
 
   @@index([clientDni, startDate])
   @@index([status, paymentSeverity, endDate])
 }
 
 model SalesRecord {
-  id        Int      @id @default(autoincrement())
-  saleDate  DateTime
-  product   String
-  amount    Float
-  clientDni Int
-  soldById  Int?
-  client    Client   @relation(fields: [clientDni], references: [dni], onDelete: Cascade)
-  soldBy    AdminAccount? @relation("SalesRecorded", fields: [soldById], references: [id], onDelete: SetNull)
+  id            Int           @id @default(autoincrement())
+  saleDate      DateTime
+  product       String
+  amount        Float
+  clientDni     Int
+  isPaid        Boolean       @default(true)
+  soldById      Int?
+  paymentMethod String        @default("Efectivo")
+  client        Client        @relation(fields: [clientDni], references: [dni], onDelete: Cascade)
+  soldBy        AdminAccount? @relation("SalesRecorded", fields: [soldById], references: [id])
 }
 
 model Notification {
@@ -108,8 +110,8 @@ model Notification {
   entityId    String?
   readAt      DateTime?
   createdAt   DateTime      @default(now())
+  actor       AdminAccount? @relation("NotificationsCreated", fields: [actorId], references: [id])
   recipient   AdminAccount  @relation("NotificationsReceived", fields: [recipientId], references: [id], onDelete: Cascade)
-  actor       AdminAccount? @relation("NotificationsCreated", fields: [actorId], references: [id], onDelete: SetNull)
 }
 
 model Boleta {
@@ -134,17 +136,12 @@ model Factura {
   total        Float
 }
 
-enum AttendanceStatus {
-  PRESENT
-  ABSENT
-}
-
 model Attendance {
-  id        String          @id @default(cuid())
+  id        String           @id @default(cuid())
   date      DateTime
   status    AttendanceStatus @default(PRESENT)
   clientDni Int
-  client    Client          @relation(fields: [clientDni], references: [dni], onDelete: Cascade)
+  client    Client           @relation(fields: [clientDni], references: [dni], onDelete: Cascade)
 
   @@unique([clientDni, date])
 }
@@ -156,4 +153,9 @@ model Appointment {
   scheduled DateTime
   clientDni Int
   client    Client   @relation(fields: [clientDni], references: [dni], onDelete: Cascade)
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
 }

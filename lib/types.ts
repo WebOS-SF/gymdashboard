@@ -42,6 +42,8 @@ export interface ProductSale {
   product: string
   amount: number
   clientDni: number
+  paymentMethod?: string
+  isPaid?: boolean
   client?: {
     dni: number
     nameComplete: string

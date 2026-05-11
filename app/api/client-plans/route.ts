@@ -32,9 +32,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 })
     }
 
+    let startDateInput = body.joinDate;
+    if (!startDateInput) {
+      const now = new Date();
+      const peruTime = new Date(now.getTime() - (5 * 60 * 60 * 1000));
+      startDateInput = `${peruTime.getUTCFullYear()}-${String(peruTime.getUTCMonth() + 1).padStart(2, '0')}-${String(peruTime.getUTCDate()).padStart(2, '0')}`;
+    }
+    const [y, m, d] = startDateInput.split('-').map(Number)
+    const startDate = new Date(y, m - 1, d)
+
     const computedPlan = buildPlanPayload({
       planTier: body.planTier,
-      startDate: body.joinDate ? new Date(body.joinDate) : new Date(),
+      startDate,
       durationValue: Number(body.durationValue || 1),
       durationUnit: body.durationUnit || "month",
       attendanceDays: body.attendanceDays,

@@ -9,8 +9,9 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
   try {
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
+    const now = new Date()
+    const peruTime = new Date(now.getTime() - (5 * 60 * 60 * 1000))
+    const todayStart = new Date(peruTime.getUTCFullYear(), peruTime.getUTCMonth(), peruTime.getUTCDate())
 
     const clients = await prisma.client.findMany({
       where: {

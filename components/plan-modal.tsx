@@ -14,6 +14,8 @@ import { Client, ClientPlan, DurationUnit, PlanTier, Weekday } from '@/lib/types
 import {
   buildPlanPayload,
   durationUnitLabels,
+  normalizePlanTier,
+  normalizeDurationUnit,
   planTierLabels,
   weekdayLabels,
   weekdayOrder,
@@ -83,10 +85,10 @@ function buildInitialState(mode: PlanModalMode, client: Client | null, plan: Cli
     return {
       id: plan.id,
       clientDni: client.dni,
-      planTier: plan.planTier,
+      planTier: normalizePlanTier(plan.planTier),
       joinDate: plan.startDate,
       durationValue: plan.durationValue,
-      durationUnit: plan.durationUnit,
+      durationUnit: normalizeDurationUnit(plan.durationUnit),
       attendancePreset: inferPreset(plan.attendanceDays),
       attendanceDays: plan.attendanceDays,
       paymentMethod: plan.paymentMethod || 'Efectivo',
@@ -95,10 +97,13 @@ function buildInitialState(mode: PlanModalMode, client: Client | null, plan: Cli
     }
   }
 
+  const d = new Date()
+  const todayLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
   return {
     clientDni: client?.dni || '',
     planTier: client?.planTier || 'basic',
-    joinDate: new Date().toISOString().split('T')[0],
+    joinDate: todayLocal,
     durationValue: 0,
     durationUnit: 'month',
     attendancePreset: 'daily',
@@ -345,13 +350,22 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
                           <button
                             key={suggestedClient.id}
                             type="button"
-                            onClick={() =>
-                              setFormData((current) => ({
-                                ...current,
-                                clientDni: suggestedClient.dni,
-                                planTier: suggestedClient.planTier || current.planTier,
-                              }))
-                            }
+                            onClick={() => {
+                              const isPagoPorDia = Number(suggestedClient.dni) < 0;
+                              if (isPagoPorDia) {
+                                handlePlanTierChange('por_dia');
+                                setFormData((current) => ({
+                                  ...current,
+                                  clientDni: suggestedClient.dni,
+                                }));
+                              } else {
+                                setFormData((current) => ({
+                                  ...current,
+                                  clientDni: suggestedClient.dni,
+                                  planTier: suggestedClient.planTier || current.planTier,
+                                }));
+                              }
+                            }}
                             className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-secondary focus:bg-secondary focus:outline-none"
                           >
                             <div className="min-w-0">
@@ -359,7 +373,7 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
                                 {suggestedClient.name || 'Sin nombre'}
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                DNI {suggestedClient.dni}
+                                {Number(suggestedClient.dni) < 0 ? 'Pago por día' : `DNI ${suggestedClient.dni}`}
                               </p>
                             </div>
                             <span className="shrink-0 text-[11px] text-muted-foreground">
@@ -517,8 +531,10 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className="rounded-lg border-border/60">{planPreview.name}</Badge>
                   <Badge variant="outline" className="rounded-lg border-border/60">
-                    Vence: {planPreview.endDate.toISOString().split('T')[0]}
-                  </Badge>
+                    Vence: {(() => {
+                    const ed = planPreview.endDate;
+                    return `${ed.getFullYear()}-${String(ed.getMonth() + 1).padStart(2, '0')}-${String(ed.getDate()).padStart(2, '0')}`;
+                  })()}{' '}                 </Badge>
                   <Badge variant="outline" className="rounded-lg border-border/60">
                     {paymentSummaryLabel(formData.amountPaid, planPreview.totalPrice)}
                   </Badge>

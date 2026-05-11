@@ -3,8 +3,12 @@ import { requireUser } from "@/lib/auth"
 import { NextResponse } from "next/server"
 
 function getTodayStart(): Date {
+  // Obtener fecha actual en UTC
   const now = new Date()
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  // Ajustar a la zona horaria de Perú (UTC-5)
+  const peruTime = new Date(now.getTime() - (5 * 60 * 60 * 1000))
+  // Retornar el inicio del día en esa zona
+  return new Date(peruTime.getUTCFullYear(), peruTime.getUTCMonth(), peruTime.getUTCDate())
 }
 
 export async function POST(request: Request) {
@@ -26,22 +30,28 @@ export async function POST(request: Request) {
 
     const date = getTodayStart()
 
-    const attendance = await prisma.attendance.upsert({
+    const existingAttendance = await prisma.attendance.findFirst({
       where: {
-        clientDni_date: {
-          clientDni,
-          date,
-        },
-      },
-      update: {
-        status,
-      },
-      create: {
         clientDni,
         date,
-        status,
       },
     })
+
+    let attendance
+    if (existingAttendance) {
+      attendance = await prisma.attendance.update({
+        where: { id: existingAttendance.id },
+        data: { status },
+      })
+    } else {
+      attendance = await prisma.attendance.create({
+        data: {
+          clientDni,
+          date,
+          status,
+        },
+      })
+    }
 
     return NextResponse.json(attendance)
   } catch (error) {

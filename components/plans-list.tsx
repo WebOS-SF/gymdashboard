@@ -252,11 +252,12 @@ export function PlansList({ clients, canViewMoney, onClientsChange }: PlansListP
       </Card>
 
       <PlanModal
+        key={selectedPlan ? `edit-${selectedPlan.id}` : selectedClient ? `renew-${selectedClient.dni}` : 'create'}
         mode={modalMode}
         clients={clients}
         client={selectedClient}
         plan={selectedPlan}
-        canViewMoney={canViewMoney}
+        canViewMoney={true}
         isOpen={isModalOpen}
         isSaving={isSaving}
         onClose={() => setIsModalOpen(false)}
