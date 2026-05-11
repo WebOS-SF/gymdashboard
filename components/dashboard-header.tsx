@@ -74,7 +74,7 @@ export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
             <Dumbbell className="h-5 w-5 text-primary-foreground" />
           </div>
           <div className="hidden sm:block">
-            <h1 className="text-lg font-bold text-foreground">jcFitness Gym</h1>
+            <h1 className="text-lg font-bold text-foreground">JPfitness Gym</h1>
             <p className="text-xs text-muted-foreground">
               {user.username} · {user.role === 'superadmin' ? 'Superadmin' : 'Admin'}
             </p>
@@ -84,8 +84,8 @@ export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
         {/* Actions */}
         <div className="flex items-center gap-2">
           {mounted && (
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="icon"
               onClick={toggleTheme}
               className="w-10 h-10 rounded-xl bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary"
@@ -144,9 +144,8 @@ export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
                       >
                         <div className="flex items-start gap-3">
                           <span
-                            className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
-                              notification.readAt ? 'bg-transparent' : 'bg-[#FF6B6B]'
-                            }`}
+                            className={`mt-1 h-2 w-2 shrink-0 rounded-full ${notification.readAt ? 'bg-transparent' : 'bg-[#FF6B6B]'
+                              }`}
                           />
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium text-foreground">{notification.title}</p>
@@ -167,7 +166,7 @@ export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
               </ScrollArea>
             </PopoverContent>
           </Popover>
-          <Button 
+          <Button
             onClick={onLogout}
             className="h-10 px-4 rounded-xl bg-gradient-to-r from-primary to-primary/90 text-primary-foreground hover:opacity-90 shadow-lg shadow-primary/25"
           >
