@@ -170,10 +170,7 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
   }, [clients, formData.clientDni, mode])
   const hasValidDaySelection = useMemo(() => {
     if (formData.planTier === 'interdiario') return formData.attendanceDays.length === 3
-    if (formData.planTier === 'diario') return formData.attendanceDays.length === 6
-    if (formData.planTier === 'promo_exclusiva_diario') return formData.attendanceDays.length === 6
-    if (formData.planTier === 'cliente_antiguo_3meses') return formData.attendanceDays.length === 6
-    if (formData.planTier === 'promo_cliente_medium_3meses') return formData.attendanceDays.length === 6
+    if (formData.planTier === 'diario') return formData.attendanceDays.length === 7
     if (formData.planTier === 'por_dia') return formData.attendanceDays.length === 1
     return formData.attendanceDays.length > 0
   }, [formData.planTier, formData.attendanceDays])
@@ -191,17 +188,8 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
     if (formData.planTier === 'interdiario' && formData.attendanceDays.length !== 3) {
       return `Plan Interdiario: Selecciona exactamente 3 días (llevas ${formData.attendanceDays.length})`
     }
-    if (formData.planTier === 'diario' && formData.attendanceDays.length !== 6) {
-      return 'Plan Diario: Debes marcar los 6 días (lun-sab)'
-    }
-    if (formData.planTier === 'promo_exclusiva_diario' && formData.attendanceDays.length !== 6) {
-      return 'Promo Exclusiva Diario: Debes marcar los 6 días (lun-sab)'
-    }
-    if (formData.planTier === 'cliente_antiguo_3meses' && formData.attendanceDays.length !== 6) {
-      return 'Cliente Antiguo (3 meses): Debes marcar los 6 días (lun-sab)'
-    }
-    if (formData.planTier === 'promo_cliente_medium_3meses' && formData.attendanceDays.length !== 6) {
-      return 'Promo Cliente Medium (3 meses): Debes marcar los 6 días (lun-sab)'
+    if (formData.planTier === 'diario' && formData.attendanceDays.length !== 7) {
+      return 'Plan Diario: Debes marcar los 7 días'
     }
     if (formData.planTier === 'por_dia' && formData.attendanceDays.length !== 1) {
       return 'Pago por día: Selecciona exactamente 1 día'
@@ -240,21 +228,6 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
         updates.attendanceDays = alternateAttendanceDays
       } else if (planTier === 'diario') {
         updates.durationValue = 1
-        updates.durationUnit = 'month'
-        updates.attendancePreset = 'daily'
-        updates.attendanceDays = defaultAttendanceDays
-      } else if (planTier === 'promo_exclusiva_diario') {
-        updates.durationValue = 1
-        updates.durationUnit = 'month'
-        updates.attendancePreset = 'daily'
-        updates.attendanceDays = defaultAttendanceDays
-      } else if (planTier === 'cliente_antiguo_3meses') {
-        updates.durationValue = 3
-        updates.durationUnit = 'month'
-        updates.attendancePreset = 'daily'
-        updates.attendanceDays = defaultAttendanceDays
-      } else if (planTier === 'promo_cliente_medium_3meses') {
-        updates.durationValue = 3
         updates.durationUnit = 'month'
         updates.attendancePreset = 'daily'
         updates.attendanceDays = defaultAttendanceDays

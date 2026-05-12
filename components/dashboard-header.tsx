@@ -112,10 +112,10 @@ export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
                 <span className="sr-only">Ver notificaciones</span>
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)] rounded-xl border-0 bg-card p-0 shadow-lg overflow-hidden">
+            <PopoverContent align="end" className="w-80 rounded-xl border-0 bg-card p-0 shadow-lg">
               <div className="flex items-center justify-between gap-3 p-4">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-foreground truncate">Notificaciones</p>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Notificaciones</p>
                   <p className="text-xs text-muted-foreground">
                     {unreadCount > 0 ? `${unreadCount} sin leer` : 'Todo al día'}
                   </p>
@@ -125,7 +125,7 @@ export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
                     variant="ghost"
                     size="sm"
                     onClick={() => markNotificationsRead()}
-                    className="h-8 rounded-lg px-2 text-xs text-muted-foreground hover:text-foreground shrink-0"
+                    className="h-8 rounded-lg px-2 text-xs text-muted-foreground hover:text-foreground"
                   >
                     Marcar leídas
                   </Button>
@@ -149,8 +149,8 @@ export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
                             }`}
                           />
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-foreground truncate">{notification.title}</p>
-                            <p className="mt-1 text-xs leading-relaxed text-muted-foreground line-clamp-2">{notification.message}</p>
+                            <p className="text-sm font-medium text-foreground">{notification.title}</p>
+                            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{notification.message}</p>
                             <p className="mt-2 text-xs text-muted-foreground">
                               {formatNotificationDate(notification.createdAt)}
                             </p>

@@ -102,10 +102,6 @@ export function StatsCards({ clients, products, analytics }: StatsCardsProps) {
           
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm opacity-70">Ganado por mes</span>
-              <span className="text-sm font-semibold">S/ {(monthlyIncome + salesRevenue).toLocaleString()}</span>
-            </div>
-            <div className="flex items-center justify-between">
               <span className="text-sm opacity-70">Membresías</span>
               <span className="text-sm font-semibold">S/ {monthlyIncome.toLocaleString()}</span>
             </div>

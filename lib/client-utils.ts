@@ -5,9 +5,6 @@ export const planTierLabels: Record<PlanTier, string> = {
   interdiario: "Interdiario (3x)",
   diario: "Diario",
   por_dia: "Pago por día",
-  promo_exclusiva_diario: "Promo Exclusiva Diario",
-  cliente_antiguo_3meses: "Cliente Antiguo (3 meses)",
-  promo_cliente_medium_3meses: "Promo Cliente Medium (3 meses)",
 }
 
 export const planTierPrices: Record<PlanTier, Record<string, number>> = {
@@ -24,15 +21,6 @@ export const planTierPrices: Record<PlanTier, Record<string, number>> = {
   por_dia: {
     day: 8,
   },
-  promo_exclusiva_diario: {
-    month: 75,
-  },
-  cliente_antiguo_3meses: {
-    month: 200,
-  },
-  promo_cliente_medium_3meses: {
-    month: 210,
-  },
 }
 
 export const weekdayOrder: Weekday[] = [
@@ -42,6 +30,7 @@ export const weekdayOrder: Weekday[] = [
   "thursday",
   "friday",
   "saturday",
+  "sunday",
 ]
 
 export const weekdayLabels: Record<Weekday, string> = {
@@ -66,9 +55,6 @@ export function normalizePlanTier(planTier: unknown): PlanTier {
   if (value.includes("interdiario") || value.includes("inter")) return "interdiario"
   if (value.includes("diario") || value.includes("daily") || value.includes("completo")) return "diario"
   if (value.includes("por_dia") || value.includes("pago por dia") || value.includes("dia")) return "por_dia"
-  if (value.includes("promo_exclusiva") || value.includes("promocion exclusiva")) return "promo_exclusiva_diario"
-  if (value.includes("cliente_antiguo") || value.includes("cliente antiguo")) return "cliente_antiguo_3meses"
-  if (value.includes("promo_cliente_medium") || value.includes("promo cliente medium")) return "promo_cliente_medium_3meses"
   if (value.includes("basic") || value.includes("basico") || value.includes("clasico")) return "basic"
   return "basic"
 }
@@ -237,15 +223,6 @@ export function calculatePlanPrice(input: {
   } else if (planTier === "diario" && durationUnit === "month") {
     pricingMode = "fixed_diario"
     totalPrice = durationValue * 80
-  } else if (planTier === "promo_exclusiva_diario" && durationUnit === "month") {
-    pricingMode = "fixed_promo_exclusiva"
-    totalPrice = durationValue * 75
-  } else if (planTier === "cliente_antiguo_3meses" && durationUnit === "month") {
-    pricingMode = "fixed_cliente_antiguo"
-    totalPrice = durationValue * 200
-  } else if (planTier === "promo_cliente_medium_3meses" && durationUnit === "month") {
-    pricingMode = "fixed_promo_medium"
-    totalPrice = durationValue * 210
   } else if (planTier === "por_dia") {
     pricingMode = "fixed_day"
     totalPrice = Math.max(1, sessionCount) * 8
