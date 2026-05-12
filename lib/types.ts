@@ -4,7 +4,7 @@ export type UserRole = 'admin' | 'superadmin'
 export type DurationUnit = 'day' | 'week' | 'month' | 'year'
 export type PaymentState = 'paid' | 'partial' | 'unpaid'
 export type PaymentSeverity = 'none' | 'moderate' | 'critical'
-export type PlanTier = 'basic' | 'interdiario' | 'diario' | 'por_dia'
+export type PlanTier = 'basic' | 'interdiario' | 'diario' | 'por_dia' | 'promo_exclusiva_diario' | 'cliente_antiguo_3meses' | 'promo_cliente_medium_3meses'
 export type Weekday =
   | 'monday'
   | 'tuesday'
