@@ -112,11 +112,11 @@ export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
                 <span className="sr-only">Ver notificaciones</span>
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)] rounded-xl border-0 bg-card p-0 shadow-lg overflow-hidden">
-              <div className="flex items-center justify-between gap-3 p-4">
+            <PopoverContent align="end" className="w-80 sm:w-96 max-w-[calc(100vw-2rem)] z-[100] rounded-2xl border border-border/50 bg-background/95 backdrop-blur-xl p-0 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] overflow-hidden">
+              <div className="flex items-center justify-between gap-3 p-4 bg-secondary/20">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-foreground truncate">Notificaciones</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-sm font-bold text-foreground truncate">Notificaciones</p>
+                  <p className="text-xs text-muted-foreground font-medium mt-0.5">
                     {unreadCount > 0 ? `${unreadCount} sin leer` : 'Todo al día'}
                   </p>
                 </div>
@@ -125,22 +125,22 @@ export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
                     variant="ghost"
                     size="sm"
                     onClick={() => markNotificationsRead()}
-                    className="h-8 rounded-lg px-2 text-xs text-muted-foreground hover:text-foreground shrink-0"
+                    className="h-8 rounded-lg px-3 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary shrink-0 transition-colors"
                   >
                     Marcar leídas
                   </Button>
                 )}
               </div>
-              <Separator />
-              <ScrollArea className="max-h-96">
-                <div className="p-2">
+              <Separator className="opacity-50" />
+              <ScrollArea className="max-h-[60vh] sm:max-h-[400px]">
+                <div className="p-2 space-y-1">
                   {notifications.length > 0 ? (
                     notifications.map((notification) => (
                       <button
                         key={notification.id}
                         type="button"
                         onClick={() => !notification.readAt && markNotificationsRead(notification.id)}
-                        className="w-full rounded-lg p-3 text-left transition-colors hover:bg-secondary/60"
+                        className="w-full rounded-xl p-3 text-left transition-all hover:bg-secondary/60 active:scale-[0.98]"
                       >
                         <div className="flex items-start gap-3">
                           <span
@@ -148,9 +148,13 @@ export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
                               }`}
                           />
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-foreground truncate">{notification.title}</p>
-                            <p className="mt-1 text-xs leading-relaxed text-muted-foreground line-clamp-2">{notification.message}</p>
-                            <p className="mt-2 text-xs text-muted-foreground">
+                            <p className={`text-sm truncate ${notification.readAt ? 'font-medium text-foreground/80' : 'font-bold text-foreground'}`}>
+                              {notification.title}
+                            </p>
+                            <p className="mt-1 text-xs leading-relaxed text-muted-foreground line-clamp-2">
+                              {notification.message}
+                            </p>
+                            <p className="mt-2 text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider">
                               {formatNotificationDate(notification.createdAt)}
                             </p>
                           </div>
@@ -158,8 +162,10 @@ export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
                       </button>
                     ))
                   ) : (
-                    <div className="py-10 text-center text-sm text-muted-foreground">
-                      No hay notificaciones
+                    <div className="py-12 flex flex-col items-center justify-center text-center">
+                      <Bell className="h-8 w-8 text-muted-foreground/30 mb-3" />
+                      <p className="text-sm font-medium text-foreground">No hay notificaciones</p>
+                      <p className="text-xs text-muted-foreground mt-1">Aquí verás las alertas del sistema</p>
                     </div>
                   )}
                 </div>

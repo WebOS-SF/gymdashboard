@@ -97,6 +97,18 @@ export function ClientsList({ clients, onUpdateClient, onAddClient, onAttendance
       client.todayAttendance === 'NONE' ? 'PRESENT' :
       client.todayAttendance === 'PRESENT' ? 'ABSENT' : 'PRESENT'
 
+    // Validación estricta para Interdiarios
+    if (
+      nextStatus === 'PRESENT' && 
+      client.planTier === 'interdiario' && 
+      (client.weeklyAttendancesCount || 0) >= 3
+    ) {
+      const confirmExtra = window.confirm(
+        `¡LÍMITE SEMANAL ALCANZADO!\n\nEste cliente ya asistió 3 veces esta semana.\nSi va a ingresar hoy, debes cobrarle el PASE POR DÍA (S/ 8).\n\n¿Ya le cobraste el día extra y deseas registrar su asistencia?`
+      )
+      if (!confirmExtra) return
+    }
+
     try {
       const res = await fetch('/api/attendance', {
         method: 'POST',
@@ -104,6 +116,14 @@ export function ClientsList({ clients, onUpdateClient, onAddClient, onAttendance
         body: JSON.stringify({ clientDni: Number(client.dni), status: nextStatus }),
       })
       if (!res.ok) throw new Error('Error')
+      
+      // Actualizar localmente el conteo si es necesario
+      const increment = nextStatus === 'PRESENT' ? 1 : (nextStatus === 'ABSENT' && client.todayAttendance === 'PRESENT' ? -1 : 0)
+      const updatedClient = { 
+        ...client, 
+        weeklyAttendancesCount: Math.max(0, (client.weeklyAttendancesCount || 0) + increment) 
+      }
+      
       onAttendanceChange(client.dni, nextStatus)
       toast.success('Asistencia registrada', {
         description: nextStatus === 'PRESENT' 
@@ -225,17 +245,19 @@ export function ClientsList({ clients, onUpdateClient, onAddClient, onAttendance
                       {(() => {
                         const today = getTodayWeekday()
                         const isScheduledToday = client.attendanceDays?.includes(today)
-                        const canMarkAttendance = isScheduledToday || client.status === 'active'
-
+                        
                         return (
                           <Button
                             variant="ghost"
                             size="icon"
-                            disabled={!isScheduledToday}
                             onClick={() => handleAttendance(client)}
-                            className={`h-8 w-8 rounded-lg ${!isScheduledToday ? 'opacity-20 grayscale' : 'hover:bg-secondary'}`}
+                            className={`h-8 w-8 rounded-lg hover:bg-secondary transition-all ${
+                              !isScheduledToday && client.todayAttendance === 'NONE' 
+                                ? 'opacity-40 hover:opacity-100 hover:ring-2 hover:ring-[#FF6B6B]/50' 
+                                : ''
+                            }`}
                             title={
-                              !isScheduledToday ? `Hoy (${today}) no corresponde a su plan` :
+                              !isScheduledToday ? `Día extra (${today}) - Fuera de su plan original` :
                               client.todayAttendance === 'PRESENT' ? 'Presente' :
                               client.todayAttendance === 'ABSENT' ? 'Ausente' : 'Marcar asistencia'
                             }
