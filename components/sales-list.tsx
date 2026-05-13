@@ -91,6 +91,13 @@ export function SalesList({
   const [pendingSalesIds, setPendingSalesIds] = useState<number[]>([]);
   const [todaySalesSearch, setTodaySalesSearch] = useState("");
   const [cart, setCart] = useState<{ product: Product; quantity: number }[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    isOpen: boolean;
+    type: 'single' | 'group';
+    saleId?: number;
+    group?: any;
+  }>({ isOpen: false, type: 'single' });
 
   const addToCart = (product: Product) => {
     setCart((prev) => {
@@ -179,6 +186,62 @@ export function SalesList({
       setIsSubmittingSale(false);
     }
   };
+
+  const confirmDelete = async () => {
+    setIsDeleting(true);
+    try {
+      if (deleteConfirm.type === 'single' && deleteConfirm.saleId) {
+        const res = await fetch(`/api/sales/${deleteConfirm.saleId}`, {
+          method: "DELETE",
+        });
+        if (!res.ok) throw new Error();
+        toast.success("Venta eliminada", { description: "Se ha restaurado el stock." });
+        
+        // Update selected group to remove the item from view immediately
+        setSelectedGroup(prev => {
+          if (!prev) return prev;
+          const newItems = prev.items.filter(i => i.id !== deleteConfirm.saleId);
+          if (newItems.length === 0) {
+             setIsDetailOpen(false);
+             return null;
+          }
+          return {
+            ...prev,
+            items: newItems,
+            total: newItems.reduce((acc, i) => acc + i.amount, 0)
+          };
+        });
+        
+        onSaleRecorded(); // To refresh sales list and products
+      } else if (deleteConfirm.type === 'group' && deleteConfirm.group) {
+        await Promise.all(deleteConfirm.group.items.map((item: any) => 
+          fetch(`/api/sales/${item.id}`, { method: "DELETE" })
+        ));
+        toast.success("Ventas eliminadas", { description: "Se ha restaurado el stock." });
+        if (selectedGroup?.clientDni === deleteConfirm.group.clientDni) {
+          setIsDetailOpen(false);
+          setSelectedGroup(null);
+        }
+        onSaleRecorded();
+      }
+    } catch (e) {
+      toast.error("Error al eliminar la venta");
+      onSaleRecorded(); // Refresh to get the latest state anyway
+    } finally {
+      setIsDeleting(false);
+      setDeleteConfirm(prev => ({ ...prev, isOpen: false }));
+    }
+  };
+
+  const handleDeleteSale = (saleId: number) => {
+    setDeleteConfirm({ isOpen: true, type: 'single', saleId });
+  };
+
+  const handleDeleteGroup = (group: any, e: React.MouseEvent) => {
+    e.stopPropagation(); // prevent opening the group detail
+    setDeleteConfirm({ isOpen: true, type: 'group', group });
+  };
+
 
   const todayDateString = useMemo(() => {
     const d = new Date();
@@ -611,9 +674,19 @@ export function SalesList({
                 </div>
                 
                 <div className="flex items-center justify-between pt-3 border-t border-border/10">
-                  <p className="text-[11px] text-muted-foreground">
-                    Última actividad: {formatSaleDate(group.lastActivity)}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      onClick={(e) => handleDeleteGroup(group, e)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                    <p className="text-[11px] text-muted-foreground">
+                      Última actividad: {formatSaleDate(group.lastActivity)}
+                    </p>
+                  </div>
                   <span className="text-[11px] font-bold text-destructive hover:underline flex items-center gap-1 transition-all group-hover:gap-2">
                     Ver detalle <span className="text-lg leading-none">→</span>
                   </span>
@@ -827,16 +900,26 @@ export function SalesList({
                         {group.items.length} producto{group.items.length !== 1 ? 's' : ''} consumidos
                       </p>
                     </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <p className="whitespace-nowrap font-semibold text-foreground">
-                        S/ {group.total.toLocaleString()}
-                      </p>
-                      <div className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${!group.isPaid
-                            ? "bg-destructive/15 text-destructive"
-                            : "bg-success/15 text-success"
-                          }`}>
-                        {!group.isPaid ? "Falta cancelar" : "Pagado"}
+                    <div className="flex items-center gap-4">
+                      <div className="flex flex-col items-end gap-1">
+                        <p className="whitespace-nowrap font-semibold text-foreground">
+                          S/ {group.total.toLocaleString()}
+                        </p>
+                        <div className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${!group.isPaid
+                              ? "bg-destructive/15 text-destructive"
+                              : "bg-success/15 text-success"
+                            }`}>
+                          {!group.isPaid ? "Falta cancelar" : "Pagado"}
+                        </div>
                       </div>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        onClick={(e) => handleDeleteGroup(group, e)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -921,6 +1004,14 @@ export function SalesList({
                         Cobrar
                       </Button>
                     )}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleDeleteSale(sale.id)}
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -936,6 +1027,34 @@ export function SalesList({
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteConfirm.isOpen} onOpenChange={(open) => setDeleteConfirm(prev => ({ ...prev, isOpen: open }))}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Confirmar eliminación</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 text-center space-y-3">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+              <Trash2 className="h-6 w-6 text-destructive" />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              ¿Estás seguro de que deseas eliminar {deleteConfirm.type === 'single' ? 'este producto vendido' : 'todas las ventas de este grupo'}?
+            </p>
+            <p className="text-sm font-semibold text-foreground">
+              El stock se restaurará automáticamente.
+            </p>
+          </div>
+          <DialogFooter className="flex gap-2 sm:justify-center">
+            <Button variant="outline" onClick={() => setDeleteConfirm(prev => ({ ...prev, isOpen: false }))} disabled={isDeleting} className="w-full sm:w-auto">
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete} disabled={isDeleting} className="w-full sm:w-auto">
+              {isDeleting && <ButtonSpinner />}
+              {isDeleting ? "Eliminando..." : "Sí, eliminar"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
