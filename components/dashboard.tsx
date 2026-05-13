@@ -117,7 +117,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
         {isSuperadmin && (
           <>
             {/* Stats Grid with Balance Card */}
-            <StatsCards clients={clients} products={products} analytics={analytics} />
+            <StatsCards clients={clients} products={products} analytics={analytics} sales={sales} />
 
             {/* Charts Section */}
             <DashboardCharts data={monthlyData} sales={sales} />

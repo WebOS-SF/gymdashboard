@@ -63,12 +63,14 @@ export const durationUnitLabels: Record<string, string> = {
 
 export function normalizePlanTier(planTier: unknown): PlanTier {
   const value = String(planTier || "basic").trim().toLowerCase()
+  // Las verificaciones más específicas deben ir ANTES que las genéricas
+  if (value === "promo_exclusiva_diario" || value.includes("promo_exclusiva") || value.includes("promocion exclusiva")) return "promo_exclusiva_diario"
+  if (value === "cliente_antiguo_3meses" || value.includes("cliente_antiguo") || value.includes("cliente antiguo")) return "cliente_antiguo_3meses"
+  if (value === "promo_cliente_medium_3meses" || value.includes("promo_cliente_medium") || value.includes("promo cliente medium")) return "promo_cliente_medium_3meses"
   if (value.includes("interdiario") || value.includes("inter")) return "interdiario"
+  if (value.includes("por_dia") || value.includes("pago por dia")) return "por_dia"
   if (value.includes("diario") || value.includes("daily") || value.includes("completo")) return "diario"
-  if (value.includes("por_dia") || value.includes("pago por dia") || value.includes("dia")) return "por_dia"
-  if (value.includes("promo_exclusiva") || value.includes("promocion exclusiva")) return "promo_exclusiva_diario"
-  if (value.includes("cliente_antiguo") || value.includes("cliente antiguo")) return "cliente_antiguo_3meses"
-  if (value.includes("promo_cliente_medium") || value.includes("promo cliente medium")) return "promo_cliente_medium_3meses"
+  if (value.includes("dia")) return "por_dia"
   if (value.includes("basic") || value.includes("basico") || value.includes("clasico")) return "basic"
   return "basic"
 }
