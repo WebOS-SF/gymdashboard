@@ -169,7 +169,7 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
       .map(({ client }) => client)
   }, [clients, formData.clientDni, mode])
   const hasValidDaySelection = useMemo(() => {
-    if (formData.planTier === 'interdiario') return formData.attendanceDays.length === 3
+    if (formData.planTier === 'interdiario') return true
     if (formData.planTier === 'diario') return formData.attendanceDays.length === 6
     if (formData.planTier === 'promo_exclusiva_diario') return formData.attendanceDays.length === 6
     if (formData.planTier === 'cliente_antiguo_3meses') return formData.attendanceDays.length === 6
@@ -188,9 +188,6 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
   const validationMessage = useMemo(() => {
     if (!formData.clientDni) return 'Selecciona un cliente con su DNI'
     if (formData.durationValue <= 0) return 'Ingresa un periodo (ej: 1 mes)'
-    if (formData.planTier === 'interdiario' && formData.attendanceDays.length !== 3) {
-      return `Plan Interdiario: Selecciona exactamente 3 días (llevas ${formData.attendanceDays.length})`
-    }
     if (formData.planTier === 'diario' && formData.attendanceDays.length !== 6) {
       return 'Plan Diario: Debes marcar los 6 días (lun-sab)'
     }
@@ -236,8 +233,8 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
       if (planTier === 'interdiario') {
         updates.durationValue = 1
         updates.durationUnit = 'month'
-        updates.attendancePreset = 'alternate'
-        updates.attendanceDays = alternateAttendanceDays
+        updates.attendancePreset = 'daily'
+        updates.attendanceDays = defaultAttendanceDays
       } else if (planTier === 'diario') {
         updates.durationValue = 1
         updates.durationUnit = 'month'
@@ -490,21 +487,23 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
 
               </div>
 
-              <Field>
-                <FieldLabel>Días permitidos {formData.planTier === 'por_dia' && '(Sincronizado con fecha de inicio)'}</FieldLabel>
-                <div className={`grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 rounded-xl border border-border/60 p-4 ${formData.planTier === 'por_dia' ? 'opacity-60 bg-secondary/10' : ''}`}>
-                  {weekdayOrder.map((day) => (
-                    <label key={day} className="flex items-center gap-2 text-sm text-foreground">
-                      <Checkbox
-                        checked={formData.attendanceDays.includes(day)}
-                        onCheckedChange={(checked) => toggleDay(day, Boolean(checked))}
-                        disabled={formData.planTier === 'por_dia'}
-                      />
-                      {weekdayLabels[day]}
-                    </label>
-                  ))}
-                </div>
-              </Field>
+              {formData.planTier !== 'interdiario' && (
+                <Field>
+                  <FieldLabel>Días permitidos {formData.planTier === 'por_dia' && '(Sincronizado con fecha de inicio)'}</FieldLabel>
+                  <div className={`grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 rounded-xl border border-border/60 p-4 ${formData.planTier === 'por_dia' ? 'opacity-60 bg-secondary/10' : ''}`}>
+                    {weekdayOrder.map((day) => (
+                      <label key={day} className="flex items-center gap-2 text-sm text-foreground">
+                        <Checkbox
+                          checked={formData.attendanceDays.includes(day)}
+                          onCheckedChange={(checked) => toggleDay(day, Boolean(checked))}
+                          disabled={formData.planTier === 'por_dia'}
+                        />
+                        {weekdayLabels[day]}
+                      </label>
+                    ))}
+                  </div>
+                </Field>
+              )}
 
               <div className="grid gap-4 md:grid-cols-3">
                 <Field>

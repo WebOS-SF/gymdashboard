@@ -12,6 +12,12 @@ export async function GET() {
     const now = new Date()
     const peruTime = new Date(now.getTime() - (5 * 60 * 60 * 1000))
     const todayStart = new Date(peruTime.getUTCFullYear(), peruTime.getUTCMonth(), peruTime.getUTCDate())
+    
+    // Obtener el lunes de la semana actual
+    const dayOfWeek = peruTime.getUTCDay() // 0 = Domingo, 1 = Lunes, etc.
+    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+    const weekStart = new Date(todayStart)
+    weekStart.setDate(weekStart.getDate() - daysToSubtract)
 
     const clients = await prisma.client.findMany({
       where: {
@@ -31,7 +37,7 @@ export async function GET() {
         },
         attendances: {
           where: {
-            date: todayStart,
+            date: { gte: weekStart },
           },
         },
       },
@@ -54,8 +60,8 @@ export async function POST(request: Request) {
     const body = await request.json()
     const dni = Number(body.dni)
 
-    if (!Number.isFinite(dni)) {
-      return NextResponse.json({ error: "DNI inválido" }, { status: 400 })
+    if (!Number.isFinite(dni) || dni > 2147483647 || dni < -2147483647) {
+      return NextResponse.json({ error: "DNI inválido o demasiado largo" }, { status: 400 })
     }
 
     const persistedUserId = await getPersistedUserId(user)

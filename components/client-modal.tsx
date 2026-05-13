@@ -120,10 +120,15 @@ export function ClientModal({ client, isOpen, isSaving, onClose, onSave }: Clien
                     <Input
                       id="client-dni"
                       value={formData.dni}
-                      onChange={(e) => setFormData({ ...formData, dni: e.target.value })}
+                      onChange={(e) => {
+                        // Solo permitir números y máximo 8 caracteres para el DNI real
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 8);
+                        setFormData({ ...formData, dni: val });
+                      }}
                       className="bg-input border-border text-foreground"
                       required={!formData.dni.startsWith('-')}
                       disabled={Boolean(client) && Number(client.dni) > 0}
+                      maxLength={8}
                     />
                   </Field>
                 </>

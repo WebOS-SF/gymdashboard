@@ -125,6 +125,7 @@ export interface Client {
   debts: ClientDebt[]
   plans?: ClientPlan[]
   todayAttendance: AttendanceStatus
+  weeklyAttendancesCount?: number
 }
 
 export interface MonthlyData {

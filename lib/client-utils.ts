@@ -189,7 +189,8 @@ export function normalizeWeekdays(days: unknown): Weekday[] {
   return weekdayOrder.filter((day) => normalized.includes(day))
 }
 
-export function formatAttendanceLabel(days: Weekday[]) {
+export function formatAttendanceLabel(days: Weekday[], planTier?: PlanTier) {
+  if (planTier === "interdiario") return "3 veces x Sem"
   if (days.length === 0) return "Sin dias"
   if (days.length === weekdayOrder.length) return "Diario"
   return days.map((day) => weekdayLabels[day]).join(", ")
@@ -322,7 +323,7 @@ export function deriveClientStatus(input: {
 export function buildPlanName(planTier: PlanTier, durationValue: number, durationUnit: DurationUnit, attendanceDays: Weekday[]) {
   const unit = durationUnitLabels[durationUnit] || durationUnit
   const amountLabel = `${durationValue} ${unit}${durationValue === 1 ? "" : durationUnit === "month" ? "es" : "s"}`
-  return `${planTierLabels[planTier] || planTier} · ${amountLabel} · ${formatAttendanceLabel(attendanceDays)}`
+  return `${planTierLabels[planTier] || planTier} · ${amountLabel} · ${formatAttendanceLabel(attendanceDays, planTier)}`
 }
 
 export function buildPlanPayload(input: {
@@ -352,7 +353,7 @@ export function buildPlanPayload(input: {
   const paymentState = calculatePaymentState(amountPaid, totalPrice)
   const paymentSeverity = calculatePaymentSeverity({ startDate, endDate, debt })
   const status = deriveClientStatus({ endDate, debt, paymentSeverity })
-  const attendanceLabel = formatAttendanceLabel(attendanceDays)
+  const attendanceLabel = formatAttendanceLabel(attendanceDays, planTier)
   const name = buildPlanName(planTier, durationValue, durationUnit, attendanceDays)
 
   return {
@@ -421,19 +422,53 @@ export function formatClient(client: {
     (a, b) => b.startDate.getTime() - a.startDate.getTime()
   )
   const currentPlan = orderedPlans[0]
-  const debt = currentPlan?.debt ?? client.debt ?? 0
+  
+  // Calcular la deuda total sumando todos los planes, o usando la deuda heredada si no hay planes
+  const totalDebt = orderedPlans.length > 0 
+    ? orderedPlans.reduce((sum, plan) => sum + (plan.debt || 0), 0) 
+    : (client.debt ?? 0)
+
   const status = currentPlan
     ? deriveClientStatus({
       endDate: currentPlan.endDate,
-      debt,
+      debt: totalDebt,
       paymentSeverity: calculatePaymentSeverity({
         startDate: currentPlan.startDate,
         endDate: currentPlan.endDate,
-        debt,
+        debt: totalDebt,
       }),
     })
     : normalizeClientStatus(client.status)
+  
   const totalPaid = orderedPlans.reduce((sum, plan) => sum + Number(plan.amountPaid || 0), 0)
+
+  // Generar la lista de deudas detalladas para el reporte
+  const debtsList = orderedPlans.filter(p => p.debt > 0).map(p => ({
+    id: `debt-${client.dni}-${p.id}`,
+    productId: "membership",
+    productName: p.name,
+    amount: p.debt,
+    date: toIsoDate(p.endDate)
+  }))
+  
+  if (orderedPlans.length === 0 && (client.debt ?? 0) > 0) {
+    debtsList.push({
+      id: `debt-${client.dni}-legacy`,
+      productId: "membership",
+      productName: "Deuda anterior",
+      amount: client.debt,
+      date: memberSince
+    })
+  }
+
+  const now = new Date()
+  const peruTime = new Date(now.getTime() - (5 * 60 * 60 * 1000))
+  const todayIso = `${peruTime.getUTCFullYear()}-${String(peruTime.getUTCMonth() + 1).padStart(2, '0')}-${String(peruTime.getUTCDate()).padStart(2, '0')}`
+
+  const todayAttendanceRec = client.attendances?.find(a => toIsoDate(new Date(a.date)) === todayIso)
+  const todayAttendance = normalizeAttendanceStatus(todayAttendanceRec?.status)
+
+  const weeklyAttendancesCount = (client.attendances || []).filter(a => normalizeAttendanceStatus(a.status) === "PRESENT").length
 
   return {
     id: client.dni.toString(),
@@ -449,24 +484,18 @@ export function formatClient(client: {
     expiresAt: currentPlan ? toIsoDate(currentPlan.endDate) : undefined,
     attendanceLabel: currentPlan?.attendanceLabel || undefined,
     attendanceDays: normalizeWeekdays(currentPlan?.attendanceDays || []),
-    amountPaid: currentPlan?.amountPaid ?? Math.max((client.fee || 0) - debt, 0),
+    amountPaid: currentPlan?.amountPaid ?? Math.max((client.fee || 0) - totalDebt, 0),
     paymentState: normalizePaymentState(currentPlan?.paymentState),
     paymentSeverity: calculatePaymentSeverity({
       startDate: currentPlan?.startDate || client.joinDate,
       endDate: currentPlan?.endDate || client.joinDate,
-      debt,
+      debt: totalDebt,
     }),
     totalPaid,
     paymentMethod: normalizePaymentMethod(currentPlan?.paymentMethod || client.paymentMethod),
     turn: normalizeTurn(currentPlan?.turn || client.turn),
-    debt,
-    debts: debt > 0 ? [{
-      id: `debt-${client.dni}-${currentPlan?.id || "current"}`,
-      productId: "membership",
-      productName: currentPlan?.name || "Plan vigente",
-      amount: debt,
-      date: currentPlan ? toIsoDate(currentPlan.endDate) : memberSince,
-    }] : [],
+    debt: totalDebt,
+    debts: debtsList,
     plans: orderedPlans.map((plan) => ({
       id: String(plan.id),
       planTier: normalizePlanTier(plan.planTier),
@@ -500,6 +529,7 @@ export function formatClient(client: {
         }),
       }) === "inactive" ? "expired" : "active",
     })),
-    todayAttendance: normalizeAttendanceStatus(client.attendances?.[0]?.status),
+    todayAttendance,
+    weeklyAttendancesCount,
   }
 }
