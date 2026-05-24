@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireSuperadmin, requireUser } from "@/lib/auth";
-import { getPersistedUserId, notifyAdmins } from "@/lib/notifications";
+import { getPersistedUserId } from "@/lib/auth"
 import { NextResponse } from "next/server";
 
 export async function GET() {
@@ -36,14 +36,6 @@ export async function POST(req: Request){
             }
         });
 
-        await notifyAdmins({
-            actorId: user.id,
-            type: "product_created",
-            title: "Nuevo producto disponible",
-            message: `${user.username} creó ${product.name} con stock ${product.stock}.`,
-            entityType: "product",
-            entityId: product.id,
-        })
         
         return NextResponse.json(product);
     } catch (error) {

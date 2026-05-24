@@ -114,3 +114,12 @@ export function sanitizeAccount(account: { id: number; username: string; role: s
     updatedAt: account.updatedAt?.toISOString(),
   }
 }
+
+export async function getPersistedUserId(user: SessionUser) {
+  const account = await prisma.adminAccount.findUnique({
+    where: { id: user.id },
+    select: { id: true },
+  })
+
+  return account?.id
+}

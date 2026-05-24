@@ -55,22 +55,6 @@ export interface ProductSale {
   } | null
 }
 
-export interface AppNotification {
-  id: number
-  type: string
-  title: string
-  message: string
-  entityType?: string | null
-  entityId?: string | null
-  readAt: string | null
-  createdAt: string
-  actor?: {
-    id: number
-    username: string
-    role: UserRole
-  } | null
-}
-
 export interface ClientDebt {
   id: string
   productId: string

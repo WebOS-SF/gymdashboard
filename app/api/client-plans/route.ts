@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { requireUser } from "@/lib/auth"
 import { buildPlanPayload, formatClient } from "@/lib/client-utils"
-import { getPersistedUserId, notifyPaymentPending } from "@/lib/notifications"
+import { getPersistedUserId } from "@/lib/auth"
 import { NextResponse } from "next/server"
 
 export async function POST(request: Request) {
@@ -92,13 +92,6 @@ export async function POST(request: Request) {
       })
     })
 
-    if (computedPlan.debt > 0) {
-      await notifyPaymentPending(user, {
-        dni: result.dni,
-        nameComplete: result.nameComplete,
-        debt: computedPlan.debt,
-      })
-    }
 
     return NextResponse.json(formatClient(result))
   } catch (error) {

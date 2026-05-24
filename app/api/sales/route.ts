@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { getPersistedUserId, notifySuperadmins } from "@/lib/notifications";
+import { getPersistedUserId } from "@/lib/auth"
 import { NextResponse } from "next/server";
 
 const WALK_IN_CLIENT_DNI = 0
@@ -123,19 +123,6 @@ export async function POST(req: Request) {
       return { items: processedItems }
     })
 
-    if (user.role === "admin") {
-      const totalAmount = result.items.reduce((sum, item) => sum + item.sale.amount, 0)
-      const productsSummary = result.items.map(i => `${i.quantity}x ${i.sale.product}`).join(", ")
-      
-      await notifySuperadmins({
-        actorId: user.id,
-        type: "sale_created",
-        title: "Nueva venta registrada",
-        message: `${user.username} vendió: ${productsSummary} por un total de S/ ${totalAmount.toLocaleString("es-PE")}.`,
-        entityType: "sale",
-        entityId: result.items[0].sale.id, // Reference first sale for now
-      })
-    }
 
     return NextResponse.json(result);
   } catch (error) {

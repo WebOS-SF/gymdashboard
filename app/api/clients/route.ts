@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { requireUser } from "@/lib/auth"
 import { formatClient } from "@/lib/client-utils"
-import { getPersistedUserId, notifySuperadmins } from "@/lib/notifications"
+import { getPersistedUserId } from "@/lib/auth"
 import { NextResponse } from "next/server"
 
 export async function GET() {
@@ -101,16 +101,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No se pudo registrar el cliente" }, { status: 500 })
     }
 
-    if (user.role === "admin") {
-      await notifySuperadmins({
-        actorId: user.id,
-        type: "client_created",
-        title: "Registro de cliente actualizado",
-        message: `${user.username} registró o renovó a ${result.nameComplete}.`,
-        entityType: "client",
-        entityId: result.dni,
-      })
-    }
 
     return NextResponse.json(formatClient(result))
   } catch (error) {
