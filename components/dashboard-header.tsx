@@ -1,13 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
-import { Dumbbell, LogOut, Sun, Moon, Bell } from 'lucide-react'
+import { Dumbbell, LogOut, Sun, Moon } from 'lucide-react'
 import { useTheme } from '@/hooks/use-theme'
-import { AppNotification, AuthUser } from '@/lib/types'
+import { AuthUser } from '@/lib/types'
 
 interface DashboardHeaderProps {
   user: AuthUser
@@ -16,54 +13,6 @@ interface DashboardHeaderProps {
 
 export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
   const { theme, toggleTheme, mounted } = useTheme()
-  const [notifications, setNotifications] = useState<AppNotification[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
-
-  const fetchNotifications = useCallback(async () => {
-    const res = await fetch('/api/notifications')
-    if (!res.ok) return
-
-    const data = await res.json()
-    setNotifications(data.notifications || [])
-    setUnreadCount(data.unreadCount || 0)
-  }, [])
-
-  useEffect(() => {
-    fetchNotifications()
-    const interval = window.setInterval(fetchNotifications, 15000)
-
-    return () => window.clearInterval(interval)
-  }, [fetchNotifications])
-
-  const markNotificationsRead = async (id?: number) => {
-    await fetch('/api/notifications', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(typeof id === 'number' ? { id } : {}),
-    })
-
-    if (typeof id === 'number') {
-      setNotifications(prev =>
-        prev.map(notification =>
-          notification.id === id
-            ? { ...notification, readAt: notification.readAt || new Date().toISOString() }
-            : notification,
-        ),
-      )
-      setUnreadCount(prev => Math.max(prev - 1, 0))
-      return
-    }
-
-    const readAt = new Date().toISOString()
-    setNotifications(prev => prev.map(notification => ({ ...notification, readAt: notification.readAt || readAt })))
-    setUnreadCount(0)
-  }
-
-  const formatNotificationDate = (value: string) =>
-    new Intl.DateTimeFormat('es-PE', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    }).format(new Date(value))
 
   return (
     <header className="bg-card px-6 py-4 rounded-2xl mx-4 mt-4 shadow-sm">
@@ -74,7 +23,7 @@ export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
             <Dumbbell className="h-5 w-5 text-primary-foreground" />
           </div>
           <div className="hidden sm:block">
-            <h1 className="text-lg font-bold text-foreground">JPfitness Gym</h1>
+            <h1 className="text-lg font-bold text-foreground">JPFitness Gym</h1>
             <p className="text-xs text-muted-foreground">
               {user.username} · {user.role === 'superadmin' ? 'Superadmin' : 'Admin'}
             </p>
@@ -84,8 +33,8 @@ export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
         {/* Actions */}
         <div className="flex items-center gap-2">
           {mounted && (
-            <Button
-              variant="ghost"
+            <Button 
+              variant="ghost" 
               size="icon"
               onClick={toggleTheme}
               className="w-10 h-10 rounded-xl bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary"
@@ -98,81 +47,6 @@ export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
               <span className="sr-only">Cambiar tema</span>
             </Button>
           )}
-          <Popover onOpenChange={(open) => open && fetchNotifications()}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="relative w-10 h-10 rounded-xl bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary"
-              >
-                <Bell className="h-5 w-5" />
-                {unreadCount > 0 && (
-                  <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-[#FF6B6B] ring-2 ring-card" />
-                )}
-                <span className="sr-only">Ver notificaciones</span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-80 sm:w-96 max-w-[calc(100vw-2rem)] z-[100] rounded-2xl border border-border/50 bg-background/95 backdrop-blur-xl p-0 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] overflow-hidden">
-              <div className="flex items-center justify-between gap-3 p-4 bg-secondary/20">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-foreground truncate">Notificaciones</p>
-                  <p className="text-xs text-muted-foreground font-medium mt-0.5">
-                    {unreadCount > 0 ? `${unreadCount} sin leer` : 'Todo al día'}
-                  </p>
-                </div>
-                {unreadCount > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => markNotificationsRead()}
-                    className="h-8 rounded-lg px-3 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary shrink-0 transition-colors"
-                  >
-                    Marcar leídas
-                  </Button>
-                )}
-              </div>
-              <Separator className="opacity-50" />
-              <ScrollArea className="max-h-[60vh] sm:max-h-[400px]">
-                <div className="p-2 space-y-1">
-                  {notifications.length > 0 ? (
-                    notifications.map((notification) => (
-                      <button
-                        key={notification.id}
-                        type="button"
-                        onClick={() => !notification.readAt && markNotificationsRead(notification.id)}
-                        className="w-full rounded-xl p-3 text-left transition-all hover:bg-secondary/60 active:scale-[0.98]"
-                      >
-                        <div className="flex items-start gap-3">
-                          <span
-                            className={`mt-1.5 h-2 w-2 shrink-0 rounded-full shadow-sm ${
-                              notification.readAt ? 'bg-transparent' : 'bg-[#FF6B6B] shadow-[#FF6B6B]/30'
-                            }`}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <p className={`text-sm truncate ${notification.readAt ? 'font-medium text-foreground/80' : 'font-bold text-foreground'}`}>
-                              {notification.title}
-                            </p>
-                            <p className="mt-1 text-xs leading-relaxed text-muted-foreground line-clamp-2">
-                              {notification.message}
-                            </p>
-                            <p className="mt-2 text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider">
-                              {formatNotificationDate(notification.createdAt)}
-                            </p>
-                          </div>
-                        </div>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="py-12 flex flex-col items-center justify-center text-center">
-                      <Bell className="h-8 w-8 text-muted-foreground/30 mb-3" />
-                      <p className="text-sm font-medium text-foreground">No hay notificaciones</p>
-                      <p className="text-xs text-muted-foreground mt-1">Aquí verás las alertas del sistema</p>
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-            </PopoverContent>
-          </Popover>
           <Button 
             onClick={onLogout}
             className="h-10 px-4 rounded-xl bg-gradient-to-r from-primary to-primary/90 text-primary-foreground hover:opacity-90 shadow-lg shadow-primary/25"
