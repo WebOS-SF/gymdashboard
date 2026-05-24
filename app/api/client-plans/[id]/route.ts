@@ -104,3 +104,82 @@ export async function PUT(
     return NextResponse.json({ error: "Error al actualizar el plan" }, { status: 500 })
   }
 }
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const user = await requireUser()
+  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+
+  try {
+    const { id } = await params
+    const planId = Number(id)
+
+    const existingPlan = await prisma.clientPlan.findUnique({
+      where: { id: planId },
+      include: {
+        client: {
+          include: {
+            plans: {
+              orderBy: {
+                startDate: "desc",
+              },
+            },
+          },
+        },
+      },
+    })
+
+    if (!existingPlan) {
+      return NextResponse.json({ error: "Plan no encontrado" }, { status: 404 })
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.clientPlan.delete({
+        where: { id: planId },
+      })
+
+      const remainingPlans = await tx.clientPlan.findMany({
+        where: { clientDni: existingPlan.clientDni },
+        orderBy: {
+          startDate: "desc",
+        },
+      })
+
+      const activePlan = remainingPlans.find((p) => p.status === "active")
+
+      return tx.client.update({
+        where: { dni: existingPlan.clientDni },
+        data: activePlan
+          ? {
+              fee: activePlan.totalPrice,
+              mode: activePlan.name,
+              paymentMethod: activePlan.paymentMethod,
+              turn: activePlan.turn,
+              debt: activePlan.debt,
+              status: activePlan.status === "active" ? "active" : "inactive",
+            }
+          : {
+              fee: 0,
+              mode: "Sin plan",
+              paymentMethod: "Efectivo",
+              turn: "Mañana",
+              debt: 0,
+              status: "inactive",
+            },
+        include: {
+          plans: {
+            orderBy: {
+              startDate: "desc",
+            },
+          },
+        },
+      })
+    })
+
+    return NextResponse.json(formatClient(result))
+  } catch (error) {
+    return NextResponse.json({ error: "Error al eliminar el plan" }, { status: 500 })
+  }
+}

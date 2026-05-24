@@ -8,6 +8,8 @@ export const planTierLabels: Record<PlanTier, string> = {
   promo_exclusiva_diario: "Promo Exclusiva Diario",
   cliente_antiguo_3meses: "Cliente Antiguo (3 meses)",
   promo_cliente_medium_3meses: "Promo Cliente Medium (3 meses)",
+  diario_trotadora: "Diario + Trotadora (3x/sem)",
+  interdiario_trotadora: "Interdiario + Trotadora (3x/sem)",
 }
 
 export const planTierPrices: Record<PlanTier, Record<string, number>> = {
@@ -32,6 +34,12 @@ export const planTierPrices: Record<PlanTier, Record<string, number>> = {
   },
   promo_cliente_medium_3meses: {
     month: 210,
+  },
+  diario_trotadora: {
+    month: 110,
+  },
+  interdiario_trotadora: {
+    month: 100,
   },
 }
 
@@ -67,6 +75,8 @@ export function normalizePlanTier(planTier: unknown): PlanTier {
   if (value === "promo_exclusiva_diario" || value.includes("promo_exclusiva") || value.includes("promocion exclusiva")) return "promo_exclusiva_diario"
   if (value === "cliente_antiguo_3meses" || value.includes("cliente_antiguo") || value.includes("cliente antiguo")) return "cliente_antiguo_3meses"
   if (value === "promo_cliente_medium_3meses" || value.includes("promo_cliente_medium") || value.includes("promo cliente medium")) return "promo_cliente_medium_3meses"
+  if ((value.includes("interdiario") || value.includes("inter")) && value.includes("trotadora")) return "interdiario_trotadora"
+  if (value.includes("diario") && value.includes("trotadora")) return "diario_trotadora"
   if (value.includes("interdiario") || value.includes("inter")) return "interdiario"
   if (value.includes("por_dia") || value.includes("pago por dia")) return "por_dia"
   if (value.includes("diario") || value.includes("daily") || value.includes("completo")) return "diario"
@@ -190,7 +200,7 @@ export function normalizeWeekdays(days: unknown): Weekday[] {
 }
 
 export function formatAttendanceLabel(days: Weekday[], planTier?: PlanTier) {
-  if (planTier === "interdiario") return "3 veces x Sem"
+  if (planTier === "interdiario" || planTier === "interdiario_trotadora") return "3 veces x Sem"
   if (days.length === 0) return "Sin dias"
   if (days.length === weekdayOrder.length) return "Diario"
   return days.map((day) => weekdayLabels[day]).join(", ")
@@ -240,15 +250,21 @@ export function calculatePlanPrice(input: {
   } else if (planTier === "diario" && durationUnit === "month") {
     pricingMode = "fixed_diario"
     totalPrice = durationValue * 80
+  } else if (planTier === "diario_trotadora" && durationUnit === "month") {
+    pricingMode = "fixed_diario_trotadora"
+    totalPrice = durationValue * 110
+  } else if (planTier === "interdiario_trotadora" && durationUnit === "month") {
+    pricingMode = "fixed_interdiario_trotadora"
+    totalPrice = durationValue * 100
   } else if (planTier === "promo_exclusiva_diario" && durationUnit === "month") {
     pricingMode = "fixed_promo_exclusiva"
     totalPrice = durationValue * 75
   } else if (planTier === "cliente_antiguo_3meses" && durationUnit === "month") {
     pricingMode = "fixed_cliente_antiguo"
-    totalPrice = durationValue * 200
+    totalPrice = 200
   } else if (planTier === "promo_cliente_medium_3meses" && durationUnit === "month") {
     pricingMode = "fixed_promo_medium"
-    totalPrice = durationValue * 210
+    totalPrice = 210
   } else if (planTier === "por_dia") {
     pricingMode = "fixed_day"
     totalPrice = Math.max(1, sessionCount) * 8

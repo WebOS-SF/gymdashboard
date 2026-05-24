@@ -50,9 +50,9 @@ export function PlansList({ clients, canViewMoney, onClientsChange }: PlansListP
   })
 
   const replaceClient = (updatedClient: Client) => {
-    const exists = clients.some((client) => client.dni === updatedClient.dni)
+    const exists = clients.some((client) => client.id === updatedClient.id)
     if (exists) {
-      onClientsChange(clients.map((client) => client.dni === updatedClient.dni ? updatedClient : client))
+      onClientsChange(clients.map((client) => client.id === updatedClient.id ? updatedClient : client))
     } else {
       onClientsChange([...clients, updatedClient])
     }
@@ -113,6 +113,34 @@ export function PlansList({ clients, canViewMoney, onClientsChange }: PlansListP
     } catch (error) {
       console.error('Error guardando plan:', error)
       toast.error('No se pudo guardar el plan', {
+        description: error instanceof Error ? error.message : 'Inténtalo nuevamente.',
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDelete = async (planId: number) => {
+    if (isSaving) return
+
+    setIsSaving(true)
+    try {
+      const res = await fetch(`/api/client-plans/${planId}`, {
+        method: 'DELETE',
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data?.error || 'Error eliminando plan')
+      }
+
+      replaceClient(data)
+      toast.success('Plan eliminado', {
+        description: 'El plan ha sido eliminado correctamente.',
+      })
+    } catch (error) {
+      console.error('Error eliminando plan:', error)
+      toast.error('No se pudo eliminar el plan', {
         description: error instanceof Error ? error.message : 'Inténtalo nuevamente.',
       })
     } finally {
@@ -186,7 +214,7 @@ export function PlansList({ clients, canViewMoney, onClientsChange }: PlansListP
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="border-border/50 text-foreground font-normal rounded-lg">
-                        {plan.name}
+                        {plan.name} <span className="text-muted-foreground ml-1">#{plan.id}</span>
                       </Badge>
                     </TableCell>
                     <TableCell className="hidden lg:table-cell text-muted-foreground">
@@ -262,6 +290,7 @@ export function PlansList({ clients, canViewMoney, onClientsChange }: PlansListP
         isSaving={isSaving}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
+        onDelete={modalMode === 'edit' ? handleDelete : undefined}
       />
     </>
   )

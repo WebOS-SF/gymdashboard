@@ -23,6 +23,30 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
   const [selectedYear, setSelectedYear] = useState(now.getFullYear())
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth()) // 0-indexed
 
+  // --- Selector de día para Ganado Hoy ---
+  const [selectedDate, setSelectedDate] = useState(new Date())
+
+  const goToPrevDay = () => {
+    setSelectedDate(prev => {
+      const newDate = new Date(prev)
+      newDate.setDate(newDate.getDate() - 1)
+      return newDate
+    })
+  }
+
+  const goToNextDay = () => {
+    const now = new Date()
+    const isToday = selectedDate.toDateString() === now.toDateString()
+    if (isToday) return // No navegar más allá del día actual
+    setSelectedDate(prev => {
+      const newDate = new Date(prev)
+      newDate.setDate(newDate.getDate() + 1)
+      return newDate
+    })
+  }
+
+  const isToday = selectedDate.toDateString() === new Date().toDateString()
+
   const goToPrevMonth = () => {
     if (selectedMonth === 0) {
       setSelectedMonth(11)
@@ -73,13 +97,74 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
 
   const filteredTotal = filteredMonthlyIncome + filteredSalesRevenue
 
+  // --- Cálculos del día actual ---
+  const todayIncome = useMemo(() => {
+    const today = selectedDate
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    
+    return clients?.reduce((acc, client) => {
+      const plansToday = (client.plans || []).filter(plan => {
+        const planDateStr = String(plan.startDate).split('T')[0]
+        return planDateStr === todayStr
+      })
+      return acc + plansToday.reduce((s, p) => s + (p.amountPaid || 0), 0)
+    }, 0) || 0
+  }, [clients, selectedDate])
+
+  const todaySalesRevenue = useMemo(() => {
+    const today = selectedDate
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    
+    return (sales || []).filter(sale => {
+      const saleDateStr = String(sale.saleDate).split('T')[0]
+      return saleDateStr === todayStr && sale.isPaid === true
+    }).reduce((acc, sale) => acc + (sale.amount || 0), 0)
+  }, [sales, selectedDate])
+
+  const todaySalesCount = useMemo(() => {
+    const today = selectedDate
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    
+    return (sales || []).filter(sale => {
+      const saleDateStr = String(sale.saleDate).split('T')[0]
+      return saleDateStr === todayStr
+    }).length
+  }, [sales, selectedDate])
+
+  const todayTotal = todayIncome + todaySalesRevenue
+
+  const [isClosureOpen, setIsClosureOpen] = useState(false);
+
+  const openClosure = () => setIsClosureOpen(true);
+  const closeClosure = () => setIsClosureOpen(false);
+
   // --- Estadísticas globales (sin filtro de mes) ---
   const activeClients = clients?.filter(c => c.status === 'active').length || 0
   const pendingPayments = clients?.filter(
     c => c.status === 'pending_moderate' || c.status === 'pending_critical'
   ).length || 0
   const totalStock = products?.reduce((acc, p) => acc + p.stock, 0) || 0
-  const totalDebts = clients?.reduce((acc, c) => acc + ((c.debts || []).reduce((a, d) => a + d.amount, 0)), 0) || 0
+  const totalDebts = useMemo(() => {
+    const today = selectedDate
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+
+    // Deudas de planes creados el día seleccionado
+    const planDebts = clients?.reduce((acc, client) => {
+      const plansToday = (client.plans || []).filter(plan => {
+        const planDateStr = String(plan.startDate).split('T')[0]
+        return planDateStr === todayStr
+      })
+      return acc + plansToday.reduce((s, p) => s + ((p.totalPrice || 0) - (p.amountPaid || 0)), 0)
+    }, 0) || 0
+
+    // Deudas de ventas del día seleccionado
+    const productDebts = (sales || []).filter(sale => {
+      const saleDateStr = String(sale.saleDate).split('T')[0]
+      return saleDateStr === todayStr && !sale.isPaid
+    }).reduce((acc, sale) => acc + (sale.amount || 0), 0)
+
+    return planDebts + productDebts
+  }, [clients, sales, selectedDate])
   const monthlyIncome = clients?.reduce((acc, c) => acc + c.planPrice, 0) || 0
   const salesRevenue = analytics?.totalRevenue || 0
 
@@ -157,46 +242,46 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
             {/* Header con título */}
             <div className="flex items-center gap-2 mb-3">
               <CreditCard className="h-5 w-5 opacity-80" />
-              <span className="text-sm font-medium opacity-80">Total Ganado</span>
+              <span className="text-sm font-medium opacity-80">Ganado</span>
             </div>
 
-            {/* Selector de mes */}
+            {/* Selector de día */}
             <div className="flex items-center justify-between mb-3 bg-white/10 rounded-xl px-3 py-1.5">
               <button
-                onClick={goToPrevMonth}
+                onClick={goToPrevDay}
                 className="p-0.5 rounded-lg hover:bg-white/20 transition-colors"
-                aria-label="Mes anterior"
+                aria-label="Día anterior"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <span className="text-sm font-semibold tracking-wide">
-                {MONTH_NAMES[selectedMonth]} {selectedYear}
+                {selectedDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
               </span>
               <button
-                onClick={goToNextMonth}
-                disabled={isCurrentMonth}
+                onClick={goToNextDay}
+                disabled={isToday}
                 className="p-0.5 rounded-lg hover:bg-white/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                aria-label="Mes siguiente"
+                aria-label="Día siguiente"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Total del mes */}
-            <p className="text-4xl font-bold mb-1">S/ {filteredTotal.toLocaleString()}</p>
-            {isCurrentMonth && (
-              <p className="text-[11px] opacity-60 mb-3">Mes actual</p>
+            {/* Total del día */}
+            <p className="text-4xl font-bold mb-1">S/ {todayTotal.toLocaleString()}</p>
+            {isToday && (
+              <p className="text-[11px] opacity-60 mb-3">Día actual</p>
             )}
           </div>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-sm opacity-70">Membresías</span>
-              <span className="text-sm font-semibold">S/ {filteredMonthlyIncome.toLocaleString()}</span>
+              <span className="text-sm font-semibold">S/ {todayIncome.toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm opacity-70">Ventas ({filteredSalesCount})</span>
-              <span className="text-sm font-semibold">S/ {filteredSalesRevenue.toLocaleString()}</span>
+              <span className="text-sm opacity-70">Ventas ({todaySalesCount})</span>
+              <span className="text-sm font-semibold">S/ {todaySalesRevenue.toLocaleString()}</span>
             </div>
             <div className="h-px bg-white/20 my-1" />
             <div className="flex items-center justify-between">

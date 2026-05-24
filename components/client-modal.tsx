@@ -110,8 +110,13 @@ export function ClientModal({ client, isOpen, isSaving, onClose, onSave }: Clien
                     <Input
                       id="client-phone"
                       value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      onChange={(e) => {
+                        // Solo permitir números y máximo 9 dígitos
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 9);
+                        setFormData({ ...formData, phone: val });
+                      }}
                       className="bg-input border-border text-foreground"
+                      maxLength={9}
                     />
                   </Field>
 

@@ -106,15 +106,15 @@ export function LoginForm({ onLogin }: LoginFormProps) {
               </div>
             )}
 
-            <Button
-              type="submit"
+            <Button 
+              type="submit" 
               className="w-full h-12 rounded-xl bg-gradient-to-r from-primary to-primary/90 text-primary-foreground hover:opacity-90 shadow-lg shadow-primary/25 font-medium"
               disabled={isLoading}
             >
               {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
             </Button>
 
-
+            
           </form>
         </CardContent>
       </Card>
