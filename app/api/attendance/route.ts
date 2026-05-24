@@ -63,12 +63,23 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const user = await requireUser()
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
   try {
-    const date = getTodayStart()
+    const { searchParams } = new URL(request.url)
+    const dateParam = searchParams.get('date')
+    
+    let date
+    if (dateParam) {
+      // Usar la fecha proporcionada en formato YYYY-MM-DD
+      const [year, month, day] = dateParam.split('-').map(Number)
+      date = new Date(year, month - 1, day)
+    } else {
+      // Usar hoy por defecto
+      date = getTodayStart()
+    }
 
     const attendances = await prisma.attendance.findMany({
       where: { date },
