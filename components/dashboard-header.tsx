@@ -1,13 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
-import { Dumbbell, LogOut, Sun, Moon, Bell } from 'lucide-react'
+import { Dumbbell, LogOut, Sun, Moon } from 'lucide-react'
 import { useTheme } from '@/hooks/use-theme'
-import { AppNotification, AuthUser } from '@/lib/types'
+import { AuthUser } from '@/lib/types'
 
 interface DashboardHeaderProps {
   user: AuthUser
@@ -16,54 +13,6 @@ interface DashboardHeaderProps {
 
 export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
   const { theme, toggleTheme, mounted } = useTheme()
-  const [notifications, setNotifications] = useState<AppNotification[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
-
-  const fetchNotifications = useCallback(async () => {
-    const res = await fetch('/api/notifications')
-    if (!res.ok) return
-
-    const data = await res.json()
-    setNotifications(data.notifications || [])
-    setUnreadCount(data.unreadCount || 0)
-  }, [])
-
-  useEffect(() => {
-    fetchNotifications()
-    const interval = window.setInterval(fetchNotifications, 15000)
-
-    return () => window.clearInterval(interval)
-  }, [fetchNotifications])
-
-  const markNotificationsRead = async (id?: number) => {
-    await fetch('/api/notifications', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(typeof id === 'number' ? { id } : {}),
-    })
-
-    if (typeof id === 'number') {
-      setNotifications(prev =>
-        prev.map(notification =>
-          notification.id === id
-            ? { ...notification, readAt: notification.readAt || new Date().toISOString() }
-            : notification,
-        ),
-      )
-      setUnreadCount(prev => Math.max(prev - 1, 0))
-      return
-    }
-
-    const readAt = new Date().toISOString()
-    setNotifications(prev => prev.map(notification => ({ ...notification, readAt: notification.readAt || readAt })))
-    setUnreadCount(0)
-  }
-
-  const formatNotificationDate = (value: string) =>
-    new Intl.DateTimeFormat('es-PE', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    }).format(new Date(value))
 
   return (
     <header className="bg-card px-6 py-4 rounded-2xl mx-4 mt-4 shadow-sm">
