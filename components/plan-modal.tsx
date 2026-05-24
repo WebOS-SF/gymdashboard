@@ -9,7 +9,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { ButtonSpinner } from '@/components/ui/button-spinner'
-import { X } from 'lucide-react'
+import { X, Trash2 } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Client, ClientPlan, DurationUnit, PlanTier, Weekday } from '@/lib/types'
 import {
   buildPlanPayload,
@@ -36,6 +46,7 @@ interface PlanModalProps {
   isSaving: boolean
   onClose: () => void
   onSave: (plan: Record<string, unknown>) => Promise<void>
+  onDelete?: (planId: number) => Promise<void>
 }
 
 interface PlanFormState {
@@ -120,8 +131,9 @@ function paymentSummaryLabel(amountPaid: number, totalPrice: number) {
   return 'Sin pago'
 }
 
-export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, isSaving, onClose, onSave }: PlanModalProps) {
+export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, isSaving, onClose, onSave, onDelete }: PlanModalProps) {
   const [formData, setFormData] = useState<PlanFormState>(buildInitialState(mode, client, plan))
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 
   useEffect(() => {
     setFormData(buildInitialState(mode, client, plan))
@@ -170,7 +182,9 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
   }, [clients, formData.clientDni, mode])
   const hasValidDaySelection = useMemo(() => {
     if (formData.planTier === 'interdiario') return true
+    if (formData.planTier === 'interdiario_trotadora') return true
     if (formData.planTier === 'diario') return formData.attendanceDays.length === 6
+    if (formData.planTier === 'diario_trotadora') return formData.attendanceDays.length === 6
     if (formData.planTier === 'promo_exclusiva_diario') return formData.attendanceDays.length === 6
     if (formData.planTier === 'cliente_antiguo_3meses') return formData.attendanceDays.length === 6
     if (formData.planTier === 'promo_cliente_medium_3meses') return formData.attendanceDays.length === 6
@@ -190,6 +204,9 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
     if (formData.durationValue <= 0) return 'Ingresa un periodo (ej: 1 mes)'
     if (formData.planTier === 'diario' && formData.attendanceDays.length !== 6) {
       return 'Plan Diario: Debes marcar los 6 días (lun-sab)'
+    }
+    if (formData.planTier === 'diario_trotadora' && formData.attendanceDays.length !== 6) {
+      return 'Diario + Trotadora: Debes marcar los 6 días (lun-sab) para el gym'
     }
     if (formData.planTier === 'promo_exclusiva_diario' && formData.attendanceDays.length !== 6) {
       return 'Promo Exclusiva Diario: Debes marcar los 6 días (lun-sab)'
@@ -230,12 +247,12 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
     setFormData((current) => {
       const updates: Partial<PlanFormState> = { planTier }
 
-      if (planTier === 'interdiario') {
+      if (planTier === 'interdiario' || planTier === 'interdiario_trotadora') {
         updates.durationValue = 1
         updates.durationUnit = 'month'
         updates.attendancePreset = 'daily'
         updates.attendanceDays = defaultAttendanceDays
-      } else if (planTier === 'diario') {
+      } else if (planTier === 'diario' || planTier === 'diario_trotadora') {
         updates.durationValue = 1
         updates.durationUnit = 'month'
         updates.attendancePreset = 'daily'
@@ -291,7 +308,7 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
       }
 
       // Si es plan interdiario y se intenta agregar un 4to día, no hacer nada
-      if (checked && current.planTier === 'interdiario' && current.attendanceDays.length >= 3) {
+      if (checked && (current.planTier === 'interdiario' || current.planTier === 'interdiario_trotadora') && current.attendanceDays.length >= 3) {
         return current
       }
 
@@ -326,6 +343,18 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
       planPrice: planPreview.totalPrice,
       debt: planPreview.debt,
     })
+  }
+
+  const handleDelete = async () => {
+    if (!formData.id || !onDelete) return
+    setIsDeleteDialogOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!formData.id || !onDelete) return
+    await onDelete(formData.id)
+    setIsDeleteDialogOpen(false)
+    onClose()
   }
 
   if (!isOpen) return null
@@ -487,7 +516,7 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
 
               </div>
 
-              {formData.planTier !== 'interdiario' && (
+              {!(formData.planTier === 'interdiario' || formData.planTier === 'interdiario_trotadora') && (
                 <Field>
                   <FieldLabel>Días permitidos {formData.planTier === 'por_dia' && '(Sincronizado con fecha de inicio)'}</FieldLabel>
                   <div className={`grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 rounded-xl border border-border/60 p-4 ${formData.planTier === 'por_dia' ? 'opacity-60 bg-secondary/10' : ''}`}>
@@ -598,18 +627,52 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
               </div>
             </div>
 
-            <div className="flex justify-end gap-3">
-              <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={!planPreview || !selectedClient || isSaving}>
-                {isSaving && <ButtonSpinner />}
-                {mode === 'edit' ? 'Guardar Plan' : 'Crear Plan'}
-              </Button>
+            <div className="flex justify-between gap-3">
+              {mode === 'edit' && onDelete && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleDelete}
+                  disabled={isSaving}
+                  className="bg-[#FF6B6B] hover:bg-[#FF6B6B]/90 text-white"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Eliminar Plan
+                </Button>
+              )}
+              <div className="flex gap-3 ml-auto">
+                <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={!planPreview || !selectedClient || isSaving}>
+                  {isSaving && <ButtonSpinner />}
+                  {mode === 'edit' ? 'Guardar Plan' : 'Crear Plan'}
+                </Button>
+              </div>
             </div>
           </form>
         </CardContent>
       </Card>
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-foreground">¿Eliminar este plan?</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              Esta acción no se puede deshacer. El plan será eliminado permanentemente del sistema.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-border text-foreground hover:bg-secondary">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-[#FF6B6B] hover:bg-[#FF6B6B]/90 text-white"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

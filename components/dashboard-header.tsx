@@ -144,8 +144,9 @@ export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
                       >
                         <div className="flex items-start gap-3">
                           <span
-                            className={`mt-1 h-2 w-2 shrink-0 rounded-full ${notification.readAt ? 'bg-transparent' : 'bg-[#FF6B6B]'
-                              }`}
+                            className={`mt-1.5 h-2 w-2 shrink-0 rounded-full shadow-sm ${
+                              notification.readAt ? 'bg-transparent' : 'bg-[#FF6B6B] shadow-[#FF6B6B]/30'
+                            }`}
                           />
                           <div className="min-w-0 flex-1">
                             <p className={`text-sm truncate ${notification.readAt ? 'font-medium text-foreground/80' : 'font-bold text-foreground'}`}>
@@ -172,7 +173,7 @@ export function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
               </ScrollArea>
             </PopoverContent>
           </Popover>
-          <Button
+          <Button 
             onClick={onLogout}
             className="h-10 px-4 rounded-xl bg-gradient-to-r from-primary to-primary/90 text-primary-foreground hover:opacity-90 shadow-lg shadow-primary/25"
           >

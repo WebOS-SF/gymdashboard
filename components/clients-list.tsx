@@ -6,10 +6,11 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Search, Plus, Edit2, Users, Filter, CheckCircle2, XCircle, CircleDot, CalendarDays } from 'lucide-react'
+import { Search, Plus, Edit2, Users, Filter, CheckCircle2, XCircle, CircleDot, CalendarDays, UserCheck } from 'lucide-react'
 import { Client, AttendanceStatus, Weekday } from '@/lib/types'
 import { ClientModal } from './client-modal'
 import { AttendanceCalendarModal } from './attendance-calendar-modal'
+import { TodayAttendeesModal } from './today-attendees-modal'
 import { toast } from 'sonner'
 import { getTodayWeekday } from '@/lib/client-utils'
 
@@ -26,6 +27,7 @@ export function ClientsList({ clients, onUpdateClient, onAddClient, onAttendance
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [calendarClient, setCalendarClient] = useState<Client | null>(null)
+  const [isTodayAttendeesOpen, setIsTodayAttendeesOpen] = useState(false)
 
   const filteredClients = clients.filter((client) => {
     const dni = String(client.dni || '')
@@ -195,6 +197,14 @@ export function ClientsList({ clients, onUpdateClient, onAddClient, onAttendance
                 <Filter className="h-4 w-4" />
               </Button>
               <Button
+                variant="outline"
+                onClick={() => setIsTodayAttendeesOpen(true)}
+                className="h-10 px-3 rounded-xl border-0 bg-secondary/50 text-foreground hover:bg-secondary"
+              >
+                <UserCheck className="h-4 w-4 mr-2" />
+                Asistencias Hoy
+              </Button>
+              <Button
                 onClick={handleAdd}
                 className="h-10 px-4 rounded-xl bg-gradient-to-r from-primary to-primary/90 text-primary-foreground hover:opacity-90 shadow-lg shadow-primary/25"
               >
@@ -211,6 +221,8 @@ export function ClientsList({ clients, onUpdateClient, onAddClient, onAttendance
                 <TableRow className="border-0 hover:bg-transparent">
                   <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider">Cliente</TableHead>
                   <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider">DNI</TableHead>
+                  <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider hidden md:table-cell">Plan</TableHead>
+                  <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider hidden lg:table-cell">Vence</TableHead>
                   <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider hidden lg:table-cell">Teléfono</TableHead>
                   <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider hidden xl:table-cell">Cliente Desde</TableHead>
                   <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wider">Estado</TableHead>
@@ -236,8 +248,14 @@ export function ClientsList({ clients, onUpdateClient, onAddClient, onAttendance
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground font-mono text-sm">
-                      {client.dni < 0 ? <Badge variant="secondary" className="font-normal text-[10px] bg-secondary/50">Pago por día</Badge> : client.dni}
+                      {Number(client.dni) < 0 ? <Badge variant="secondary" className="font-normal text-[10px] bg-secondary/50">Pago por día</Badge> : client.dni}
                     </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <Badge variant="outline" className="border-border/50 text-foreground font-normal rounded-lg text-xs">
+                        {client.plan || 'Sin plan'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell text-muted-foreground text-sm">{client.expiresAt || '-'}</TableCell>
                     <TableCell className="hidden lg:table-cell text-muted-foreground">{client.phone || '-'}</TableCell>
                     <TableCell className="hidden xl:table-cell text-muted-foreground">{client.memberSince || client.joinDate}</TableCell>
                     <TableCell>{getStatusBadge(client)}</TableCell>
@@ -290,7 +308,7 @@ export function ClientsList({ clients, onUpdateClient, onAddClient, onAttendance
                 ))}
                 {filteredClients.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
                       {searchDni ? 'No se encontraron clientes con ese criterio' : 'No hay clientes registrados'}
                     </TableCell>
                   </TableRow>
@@ -314,6 +332,12 @@ export function ClientsList({ clients, onUpdateClient, onAddClient, onAttendance
         clientName={calendarClient?.name || ''}
         isOpen={Boolean(calendarClient)}
         onClose={() => setCalendarClient(null)}
+      />
+
+      <TodayAttendeesModal
+        clients={clients}
+        isOpen={isTodayAttendeesOpen}
+        onClose={() => setIsTodayAttendeesOpen(false)}
       />
     </>
   )

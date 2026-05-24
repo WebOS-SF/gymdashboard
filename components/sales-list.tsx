@@ -174,11 +174,31 @@ export function SalesList({
 
       if (!res.ok) throw new Error("Error al liquidar deuda");
 
+      const updatedSale = await res.json();
+
       toast.success("Venta liquidada", {
         description: `Se registró el pago por ${method}.`,
       });
       setIsSettling(false);
       setSettlingSale(null);
+      
+      // Update selected group to reflect the paid status
+      if (selectedGroup) {
+        setSelectedGroup(prev => {
+          if (!prev) return prev;
+          const updatedItems = prev.items.map(item => 
+            item.id === updatedSale.id ? { ...item, isPaid: true, paymentMethod: method } : item
+          );
+          const allPaid = updatedItems.every(item => item.isPaid);
+          return {
+            ...prev,
+            items: updatedItems,
+            isPaid: allPaid,
+            paymentMethod: allPaid ? method : prev.paymentMethod
+          };
+        });
+      }
+      
       onSaleRecorded();
     } catch (error) {
       toast.error("No se pudo actualizar el pago");
