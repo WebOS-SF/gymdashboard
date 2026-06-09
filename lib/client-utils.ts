@@ -484,7 +484,18 @@ export function formatClient(client: {
   const todayAttendanceRec = client.attendances?.find(a => toIsoDate(new Date(a.date)) === todayIso)
   const todayAttendance = normalizeAttendanceStatus(todayAttendanceRec?.status)
 
-  const weeklyAttendancesCount = (client.attendances || []).filter(a => normalizeAttendanceStatus(a.status) === "PRESENT").length
+  // Calcular el lunes de la semana actual para filtrar asistencias semanales
+  const todayStart = new Date(peruTime.getUTCFullYear(), peruTime.getUTCMonth(), peruTime.getUTCDate())
+  const dayOfWeek = peruTime.getUTCDay() // 0 = Domingo, 1 = Lunes, etc.
+  const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+  const weekStart = new Date(todayStart)
+  weekStart.setDate(weekStart.getDate() - daysToSubtract)
+
+  const weeklyAttendancesCount = (client.attendances || [])
+    .filter(a => {
+      const attendanceDate = new Date(a.date)
+      return attendanceDate >= weekStart && normalizeAttendanceStatus(a.status) === "PRESENT"
+    }).length
 
   return {
     id: client.dni.toString(),
