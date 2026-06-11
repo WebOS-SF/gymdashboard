@@ -11,6 +11,15 @@ const MONTH_NAMES = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
 ]
 
+// Convierte una fecha (string ISO o Date) a YYYY-MM-DD usando la hora local del navegador
+const toLocalDateStr = (date: string | Date) => {
+  const d = new Date(date)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+const formatDebtDate = (date: string | Date) =>
+  new Intl.DateTimeFormat('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(date))
+
 interface StatsCardsProps {
   clients: Client[]
   products: Product[]
@@ -102,35 +111,29 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
 
   // --- Cálculos del día actual ---
   const todayIncome = useMemo(() => {
-    const today = selectedDate
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-    
+    const todayStr = toLocalDateStr(selectedDate)
+
     return clients?.reduce((acc, client) => {
       const plansToday = (client.plans || []).filter(plan => {
-        const planDateStr = String(plan.startDate).split('T')[0]
-        return planDateStr === todayStr
+        return toLocalDateStr(plan.startDate) === todayStr
       })
       return acc + plansToday.reduce((s, p) => s + (p.amountPaid || 0), 0)
     }, 0) || 0
   }, [clients, selectedDate])
 
   const todaySalesRevenue = useMemo(() => {
-    const today = selectedDate
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-    
+    const todayStr = toLocalDateStr(selectedDate)
+
     return (sales || []).filter(sale => {
-      const saleDateStr = String(sale.saleDate).split('T')[0]
-      return saleDateStr === todayStr && sale.isPaid === true
+      return toLocalDateStr(sale.saleDate) === todayStr && sale.isPaid === true
     }).reduce((acc, sale) => acc + (sale.amount || 0), 0)
   }, [sales, selectedDate])
 
   const todaySalesCount = useMemo(() => {
-    const today = selectedDate
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-    
+    const todayStr = toLocalDateStr(selectedDate)
+
     return (sales || []).filter(sale => {
-      const saleDateStr = String(sale.saleDate).split('T')[0]
-      return saleDateStr === todayStr && sale.isPaid === true
+      return toLocalDateStr(sale.saleDate) === todayStr && sale.isPaid === true
     }).length
   }, [sales, selectedDate])
 
@@ -148,22 +151,19 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
   ).length || 0
   const totalStock = products?.reduce((acc, p) => acc + p.stock, 0) || 0
   const totalDebts = useMemo(() => {
-    const today = selectedDate
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    const todayStr = toLocalDateStr(selectedDate)
 
     // Deudas de planes creados el día seleccionado
     const planDebts = clients?.reduce((acc, client) => {
       const plansToday = (client.plans || []).filter(plan => {
-        const planDateStr = String(plan.startDate).split('T')[0]
-        return planDateStr === todayStr
+        return toLocalDateStr(plan.startDate) === todayStr
       })
       return acc + plansToday.reduce((s, p) => s + ((p.totalPrice || 0) - (p.amountPaid || 0)), 0)
     }, 0) || 0
 
     // Deudas de ventas del día seleccionado
     const productDebts = (sales || []).filter(sale => {
-      const saleDateStr = String(sale.saleDate).split('T')[0]
-      return saleDateStr === todayStr && !sale.isPaid
+      return toLocalDateStr(sale.saleDate) === todayStr && !sale.isPaid
     }).reduce((acc, sale) => acc + (sale.amount || 0), 0)
 
     return planDebts + productDebts
@@ -171,12 +171,12 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
 
   // Deudas del mes (planes) con listado
   const monthlyPlanDebts = useMemo(() => {
-    const debtsList: Array<{ name: string; amount: number; dni: string }> = []
+    const debtsList: Array<{ name: string; amount: number; dni: string; date: string }> = []
 
     clients?.forEach(client => {
       (client.plans || []).forEach(plan => {
         const planDate = new Date(plan.startDate)
-        
+
         if (
           planDate.getFullYear() === selectedYear &&
           planDate.getMonth() === selectedMonth &&
@@ -185,7 +185,8 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
           debtsList.push({
             name: client.name || `DNI ${client.dni}`,
             amount: plan.debt,
-            dni: String(client.dni)
+            dni: String(client.dni),
+            date: plan.startDate
           })
         }
       })
@@ -196,12 +197,12 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
 
   // Deudas de productos con listado
   const productDebtsList = useMemo(() => {
-    const debtsMap = new Map<string, { name: string; amount: number; dni: string }>()
+    const debtsMap = new Map<string, { name: string; amount: number; dni: string; details: Array<{ amount: number; date: string; product: string }> }>()
 
     ;(sales || []).forEach((sale: any) => {
       if (!sale.isPaid) {
         const saleDate = new Date(sale.saleDate)
-        
+
         if (
           saleDate.getFullYear() === selectedYear &&
           saleDate.getMonth() === selectedMonth
@@ -209,14 +210,17 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
           const dni = String(sale.clientDni)
           const existing = debtsMap.get(dni)
           const clientName = sale.client?.nameComplete || `DNI ${sale.clientDni}`
-          
+          const detail = { amount: sale.amount || 0, date: sale.saleDate, product: sale.product }
+
           if (existing) {
             existing.amount += sale.amount || 0
+            existing.details.push(detail)
           } else {
             debtsMap.set(dni, {
               name: clientName,
               amount: sale.amount || 0,
-              dni
+              dni,
+              details: [detail]
             })
           }
         }
@@ -434,13 +438,23 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
             ) : (
               <div className="space-y-2">
                 {productDebtsList.map((debt: any, idx: number) => (
-                  <div key={idx} className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
-                    <div className="flex-1">
-                      <p className="font-medium text-foreground">{debt.name}</p>
-                      <p className="text-xs text-muted-foreground">DNI: {debt.dni}</p>
+                  <div key={idx} className="p-3 bg-secondary/30 rounded-lg">
+                    <div className="flex justify-between items-center">
+                      <div className="flex-1">
+                        <p className="font-medium text-foreground">{debt.name}</p>
+                        <p className="text-xs text-muted-foreground">DNI: {debt.dni}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-foreground">S/ {debt.amount.toLocaleString()}</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-bold text-foreground">S/ {debt.amount.toLocaleString()}</p>
+                    <div className="mt-2 pt-2 border-t border-border/50 space-y-1">
+                      {debt.details.map((detail: any, dIdx: number) => (
+                        <div key={dIdx} className="flex justify-between items-center text-xs text-muted-foreground">
+                          <span>{detail.product} · {formatDebtDate(detail.date)}</span>
+                          <span>S/ {detail.amount.toLocaleString()}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ))}
@@ -465,7 +479,7 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
                   <div key={idx} className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
                     <div className="flex-1">
                       <p className="font-medium text-foreground">{debt.name}</p>
-                      <p className="text-xs text-muted-foreground">DNI: {debt.dni}</p>
+                      <p className="text-xs text-muted-foreground">DNI: {debt.dni} · {formatDebtDate(debt.date)}</p>
                     </div>
                     <div className="text-right">
                       <p className="font-bold text-foreground">S/ {debt.amount.toLocaleString()}</p>
