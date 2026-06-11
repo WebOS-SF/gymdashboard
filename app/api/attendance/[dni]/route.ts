@@ -4,8 +4,9 @@ import { NextResponse } from "next/server"
 
 function startOfDay(date: Date) {
   const next = new Date(date)
-  next.setHours(0, 0, 0, 0)
-  return next
+  // Ajustar a la zona horaria de Perú (UTC-5)
+  const peruTime = new Date(next.getTime() - (5 * 60 * 60 * 1000))
+  return new Date(peruTime.getUTCFullYear(), peruTime.getUTCMonth(), peruTime.getUTCDate())
 }
 
 export async function GET(
