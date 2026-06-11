@@ -103,9 +103,7 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
   // --- Cálculos del día actual ---
   const todayIncome = useMemo(() => {
     const today = selectedDate
-    // Ajustar a la zona horaria de Perú (UTC-5)
-    const peruTime = new Date(today.getTime() - (5 * 60 * 60 * 1000))
-    const todayStr = `${peruTime.getUTCFullYear()}-${String(peruTime.getUTCMonth() + 1).padStart(2, '0')}-${String(peruTime.getUTCDate()).padStart(2, '0')}`
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
     
     return clients?.reduce((acc, client) => {
       const plansToday = (client.plans || []).filter(plan => {
@@ -118,9 +116,7 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
 
   const todaySalesRevenue = useMemo(() => {
     const today = selectedDate
-    // Ajustar a la zona horaria de Perú (UTC-5)
-    const peruTime = new Date(today.getTime() - (5 * 60 * 60 * 1000))
-    const todayStr = `${peruTime.getUTCFullYear()}-${String(peruTime.getUTCMonth() + 1).padStart(2, '0')}-${String(peruTime.getUTCDate()).padStart(2, '0')}`
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
     
     return (sales || []).filter(sale => {
       const saleDateStr = String(sale.saleDate).split('T')[0]
@@ -130,9 +126,7 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
 
   const todaySalesCount = useMemo(() => {
     const today = selectedDate
-    // Ajustar a la zona horaria de Perú (UTC-5)
-    const peruTime = new Date(today.getTime() - (5 * 60 * 60 * 1000))
-    const todayStr = `${peruTime.getUTCFullYear()}-${String(peruTime.getUTCMonth() + 1).padStart(2, '0')}-${String(peruTime.getUTCDate()).padStart(2, '0')}`
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
     
     return (sales || []).filter(sale => {
       const saleDateStr = String(sale.saleDate).split('T')[0]
@@ -155,9 +149,7 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
   const totalStock = products?.reduce((acc, p) => acc + p.stock, 0) || 0
   const totalDebts = useMemo(() => {
     const today = selectedDate
-    // Ajustar a la zona horaria de Perú (UTC-5)
-    const peruTime = new Date(today.getTime() - (5 * 60 * 60 * 1000))
-    const todayStr = `${peruTime.getUTCFullYear()}-${String(peruTime.getUTCMonth() + 1).padStart(2, '0')}-${String(peruTime.getUTCDate()).padStart(2, '0')}`
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 
     // Deudas de planes creados el día seleccionado
     const planDebts = clients?.reduce((acc, client) => {
