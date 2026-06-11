@@ -2,13 +2,6 @@ import { prisma } from "@/lib/prisma"
 import { requireUser } from "@/lib/auth"
 import { NextResponse } from "next/server"
 
-function startOfDay(date: Date) {
-  const next = new Date(date)
-  // Ajustar a la zona horaria de Perú (UTC-5)
-  const peruTime = new Date(next.getTime() - (5 * 60 * 60 * 1000))
-  return new Date(peruTime.getUTCFullYear(), peruTime.getUTCMonth(), peruTime.getUTCDate())
-}
-
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ dni: string }> }
@@ -32,9 +25,12 @@ export async function GET(
       return NextResponse.json({ error: "Parámetros inválidos" }, { status: 400 })
     }
 
-    const start = startOfDay(new Date(year, month - 1, 1))
-    const end = startOfDay(new Date(year, month, 0))
-    end.setHours(23, 59, 59, 999)
+    // Medianoche de Perú (UTC-5) del primer y último día del mes, calculada
+    // con aritmética UTC pura para que sea independiente de la zona horaria
+    // del servidor (local vs producción).
+    const start = new Date(Date.UTC(year, month - 1, 1, 5, 0, 0))
+    const end = new Date(Date.UTC(year, month, 0, 5, 0, 0))
+    end.setUTCHours(23, 59, 59, 999)
 
     const attendances = await prisma.attendance.findMany({
       where: {

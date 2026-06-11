@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { requireUser } from "@/lib/auth"
+import { parseLocalDate } from "@/lib/client-utils"
 import { NextResponse } from "next/server"
 
 function getTodayStart(): Date {
@@ -7,8 +8,9 @@ function getTodayStart(): Date {
   const now = new Date()
   // Ajustar a la zona horaria de Perú (UTC-5)
   const peruTime = new Date(now.getTime() - (5 * 60 * 60 * 1000))
-  // Retornar el inicio del día en esa zona
-  return new Date(peruTime.getUTCFullYear(), peruTime.getUTCMonth(), peruTime.getUTCDate())
+  // Retornar el inicio del día en esa zona, como instante UTC (independiente
+  // de la zona horaria del servidor)
+  return new Date(Date.UTC(peruTime.getUTCFullYear(), peruTime.getUTCMonth(), peruTime.getUTCDate(), 5, 0, 0))
 }
 
 export async function POST(request: Request) {
@@ -74,8 +76,7 @@ export async function GET(request: Request) {
     let date
     if (dateParam) {
       // Usar la fecha proporcionada en formato YYYY-MM-DD
-      const [year, month, day] = dateParam.split('-').map(Number)
-      date = new Date(year, month - 1, day)
+      date = parseLocalDate(dateParam)
     } else {
       // Usar hoy por defecto
       date = getTodayStart()

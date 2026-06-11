@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { requireUser } from "@/lib/auth"
-import { buildPlanPayload, formatClient } from "@/lib/client-utils"
+import { buildPlanPayload, formatClient, parseLocalDate } from "@/lib/client-utils"
 import { getPersistedUserId } from "@/lib/auth"
 import { NextResponse } from "next/server"
 
@@ -38,8 +38,7 @@ export async function POST(request: Request) {
       const peruTime = new Date(now.getTime() - (5 * 60 * 60 * 1000));
       startDateInput = `${peruTime.getUTCFullYear()}-${String(peruTime.getUTCMonth() + 1).padStart(2, '0')}-${String(peruTime.getUTCDate()).padStart(2, '0')}`;
     }
-    const [y, m, d] = startDateInput.split('-').map(Number)
-    const startDate = new Date(y, m - 1, d)
+    const startDate = parseLocalDate(startDateInput)
 
     const computedPlan = buildPlanPayload({
       planTier: body.planTier,

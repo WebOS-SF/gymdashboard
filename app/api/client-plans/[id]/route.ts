@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { requireUser } from "@/lib/auth"
-import { buildPlanPayload, formatClient } from "@/lib/client-utils"
+import { buildPlanPayload, formatClient, parseLocalDate } from "@/lib/client-utils"
 import { NextResponse } from "next/server"
 
 export async function PUT(
@@ -35,8 +35,7 @@ export async function PUT(
     }
 
     const startDateInput = body.joinDate || (existingPlan.startDate ? new Date(existingPlan.startDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0])
-    const [y, m, d] = startDateInput.split('-').map(Number)
-    const startDate = new Date(y, m - 1, d)
+    const startDate = parseLocalDate(startDateInput)
 
     const computedPlan = buildPlanPayload({
       planTier: body.planTier || existingPlan.planTier,

@@ -151,8 +151,21 @@ function toIsoDate(date: Date) {
   return `${y}-${m}-${d}`
 }
 
+const PERU_OFFSET_MS = 5 * 60 * 60 * 1000
+
+// Normaliza una fecha a la medianoche de Perú (UTC-5), expresada como instante UTC
+// (ej: 2026-06-11 -> 2026-06-11T05:00:00.000Z). Usa aritmética UTC pura para que el
+// resultado no dependa de la zona horaria del servidor (local vs producción).
 function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const peruLocal = new Date(date.getTime() - PERU_OFFSET_MS)
+  return new Date(Date.UTC(peruLocal.getUTCFullYear(), peruLocal.getUTCMonth(), peruLocal.getUTCDate()) + PERU_OFFSET_MS)
+}
+
+// Convierte una fecha "YYYY-MM-DD" (día calendario en Perú) al instante UTC
+// correspondiente a la medianoche de ese día en Perú.
+export function parseLocalDate(dateStr: string): Date {
+  const [year, month, day] = dateStr.split("-").map(Number)
+  return new Date(Date.UTC(year, month - 1, day, 5, 0, 0))
 }
 
 export function addDuration(startDate: Date, durationValue: number, durationUnit: DurationUnit) {
