@@ -11,14 +11,29 @@ const MONTH_NAMES = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
 ]
 
+// Parsea una fecha evitando el corrimiento de día que ocurre con strings "YYYY-MM-DD":
+// `new Date("2026-07-11")` se interpreta como medianoche UTC, y en un navegador con
+// huso horario negativo (Perú, UTC-5) eso cae en el día anterior (10/07). Para esos
+// strings de solo fecha, los construimos como medianoche LOCAL en su lugar.
+const toLocalDate = (date: string | Date): Date => {
+  if (typeof date === 'string') {
+    const match = date.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (match) {
+      const [, y, m, d] = match
+      return new Date(Number(y), Number(m) - 1, Number(d))
+    }
+  }
+  return new Date(date)
+}
+
 // Convierte una fecha (string ISO o Date) a YYYY-MM-DD usando la hora local del navegador
 const toLocalDateStr = (date: string | Date) => {
-  const d = new Date(date)
+  const d = toLocalDate(date)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 const formatDebtDate = (date: string | Date) =>
-  new Intl.DateTimeFormat('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(date))
+  new Intl.DateTimeFormat('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(toLocalDate(date))
 
 interface StatsCardsProps {
   clients: Client[]
@@ -86,7 +101,7 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
     // Sumar totalPrice de planes cuyo startDate cae en el mes seleccionado
     return clients?.reduce((acc, client) => {
       const plansInMonth = (client.plans || []).filter(plan => {
-        const d = new Date(plan.startDate)
+        const d = toLocalDate(plan.startDate)
         return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth
       })
       return acc + plansInMonth.reduce((s, p) => s + (p.totalPrice || 0), 0)
@@ -95,14 +110,14 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
 
   const filteredSalesRevenue = useMemo(() => {
     return (sales || []).filter(sale => {
-      const d = new Date(sale.saleDate)
+      const d = toLocalDate(sale.saleDate)
       return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth
     }).reduce((acc, sale) => acc + (sale.amount || 0), 0)
   }, [sales, selectedYear, selectedMonth])
 
   const filteredSalesCount = useMemo(() => {
     return (sales || []).filter(sale => {
-      const d = new Date(sale.saleDate)
+      const d = toLocalDate(sale.saleDate)
       return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth
     }).length
   }, [sales, selectedYear, selectedMonth])
@@ -175,7 +190,7 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
 
     clients?.forEach(client => {
       (client.plans || []).forEach(plan => {
-        const planDate = new Date(plan.startDate)
+        const planDate = toLocalDate(plan.startDate)
 
         if (
           planDate.getFullYear() === selectedYear &&
@@ -201,7 +216,7 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
 
     ;(sales || []).forEach((sale: any) => {
       if (!sale.isPaid) {
-        const saleDate = new Date(sale.saleDate)
+        const saleDate = toLocalDate(sale.saleDate)
 
         if (
           saleDate.getFullYear() === selectedYear &&
@@ -233,7 +248,7 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
     // Calcular lo cobrado (amountPaid) de planes creados en el mes seleccionado
     const planIncome = clients?.reduce((acc, client) => {
       const plansInMonth = (client.plans || []).filter(plan => {
-        const d = new Date(plan.startDate)
+        const d = toLocalDate(plan.startDate)
         return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth
       })
       return acc + plansInMonth.reduce((s, p) => s + (p.amountPaid || 0), 0)
@@ -241,7 +256,7 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
 
     // Calcular ventas de productos pagadas en el mes seleccionado
     const productIncome = (sales || []).filter(sale => {
-      const saleDate = new Date(sale.saleDate)
+      const saleDate = toLocalDate(sale.saleDate)
       return saleDate.getFullYear() === selectedYear && saleDate.getMonth() === selectedMonth && sale.isPaid === true
     }).reduce((acc, sale) => acc + (sale.amount || 0), 0)
 
