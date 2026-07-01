@@ -55,6 +55,7 @@ export interface ProductSale {
   } | null
 }
 
+<<<<<<< Updated upstream
 export interface AppNotification {
   id: number
   type: string
@@ -65,6 +66,17 @@ export interface AppNotification {
   readAt: string | null
   createdAt: string
   actor?: {
+=======
+export interface Purchase {
+  id: number
+  purchaseDate: string
+  description: string
+  category: string
+  quantity: number
+  amount: number
+  paymentMethod: string
+  createdBy?: {
+>>>>>>> Stashed changes
     id: number
     username: string
     role: UserRole
