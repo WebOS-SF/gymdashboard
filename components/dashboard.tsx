@@ -10,20 +10,22 @@ import { PlansList } from './plans-list'
 import { ProductsList } from './products-list'
 import { AdminAccounts } from './admin-accounts'
 import { SalesList } from './sales-list'
-import { AnalyticsSummary, AuthUser, Client, Product, MonthlyData, ProductSale, AttendanceStatus } from '@/lib/types'
-import { Users, Package, Shield, ShoppingCart, CalendarRange } from 'lucide-react'
+import { PurchasesList } from './purchases-list'
+import { AnalyticsSummary, AuthUser, Client, Product, MonthlyData, ProductSale, AttendanceStatus, Purchase } from '@/lib/types'
+import { Users, Package, Shield, ShoppingCart, CalendarRange, Receipt } from 'lucide-react'
 
 interface DashboardProps {
   user: AuthUser
   onLogout: () => void
 }
 
-type ViewMode = 'clients' | 'plans' | 'products' | 'sales' | 'admins'
+type ViewMode = 'clients' | 'plans' | 'products' | 'sales' | 'purchases' | 'admins'
 
 export function Dashboard({ user, onLogout }: DashboardProps) {
   const [clients, setClients] = useState<Client[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [sales, setSales] = useState<ProductSale[]>([])
+  const [purchases, setPurchases] = useState<Purchase[]>([])
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([])
   const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('clients')
@@ -69,13 +71,22 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
     setSales(data)
   }, [])
 
+  const fetchPurchases = useCallback(async () => {
+    if (!isSuperadmin) return
+    const res = await fetch('/api/purchases')
+    if (!res.ok) return
+    const data = await res.json()
+    setPurchases(data)
+  }, [isSuperadmin])
+
   useEffect(() => {
     fetchProducts()
     fetchClients()
     fetchSales()
+    fetchPurchases()
     fetchMonthly()
     fetchAnalytics()
-  }, [fetchProducts, fetchClients, fetchSales, fetchMonthly, fetchAnalytics])
+  }, [fetchProducts, fetchClients, fetchSales, fetchPurchases, fetchMonthly, fetchAnalytics])
 
   const refreshAfterSale = useCallback(async () => {
     await Promise.all([
@@ -84,6 +95,18 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
       ...(isSuperadmin ? [fetchMonthly(), fetchAnalytics()] : []),
     ])
   }, [fetchProducts, fetchSales, fetchMonthly, fetchAnalytics, isSuperadmin])
+
+  const handleAddPurchase = (newPurchase: Purchase) => {
+    setPurchases(prev => [newPurchase, ...prev])
+  }
+
+  const handleUpdatePurchase = (updatedPurchase: Purchase) => {
+    setPurchases(prev => prev.map(p => p.id === updatedPurchase.id ? updatedPurchase : p))
+  }
+
+  const handleDeletePurchase = (id: number) => {
+    setPurchases(prev => prev.filter(p => p.id !== id))
+  }
 
   const handleUpdateClient = (updatedClient: Client) => {
     setClients(prev => prev.map(c => c.id === updatedClient.id ? updatedClient : c))
@@ -184,6 +207,18 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
                 <Button
                   variant="ghost"
                   size="sm"
+                  onClick={() => setViewMode('purchases')}
+                  className={`shrink-0 whitespace-nowrap rounded-lg transition-all ${viewMode === 'purchases'
+                      ? 'bg-primary text-primary-foreground shadow-md'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+                    }`}
+                >
+                  <Receipt className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Compras</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setViewMode('admins')}
                   className={`shrink-0 whitespace-nowrap rounded-lg transition-all ${viewMode === 'admins'
                       ? 'bg-primary text-primary-foreground shadow-md'
@@ -227,6 +262,13 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
             sales={sales}
             onUpdateProduct={handleUpdateProduct}
             onSaleRecorded={refreshAfterSale}
+          />
+        ) : viewMode === 'purchases' && isSuperadmin ? (
+          <PurchasesList
+            purchases={purchases}
+            onAddPurchase={handleAddPurchase}
+            onUpdatePurchase={handleUpdatePurchase}
+            onDeletePurchase={handleDeletePurchase}
           />
         ) : (
           <AdminAccounts currentUserId={user.id} />

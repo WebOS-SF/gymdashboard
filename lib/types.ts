@@ -55,6 +55,21 @@ export interface ProductSale {
   } | null
 }
 
+export interface Purchase {
+  id: number
+  purchaseDate: string
+  description: string
+  category: string
+  quantity: number
+  amount: number
+  paymentMethod: string
+  createdBy?: {
+    id: number
+    username: string
+    role: UserRole
+  } | null
+}
+
 export interface ClientDebt {
   id: string
   productId: string
