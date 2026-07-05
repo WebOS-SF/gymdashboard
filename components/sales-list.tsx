@@ -84,7 +84,8 @@ export function SalesList({
   const [paymentMethod, setPaymentMethod] = useState("Efectivo");
   const [settlingSale, setSettlingSale] = useState<ProductSale | null>(null);
   const [isSettling, setIsSettling] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState<{ clientDni: number, clientName: string, items: ProductSale[] } | null>(null);
+  const [settleAmount, setSettleAmount] = useState("");
+  const [selectedGroup, setSelectedGroup] = useState<{ clientDni: number, clientName: string, items: ProductSale[], total: number, totalDebt: number, isPaid: boolean, lastActivity: string, paymentMethod?: string } | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [historyDate, setHistoryDate] = useState("");
@@ -141,10 +142,12 @@ export function SalesList({
 
   const togglePendingPayment = async (sale: ProductSale) => {
     const isCurrentlyPending = !sale.isPaid;
-    
+
     if (isCurrentlyPending) {
-      // Si está pendiente y queremos marcar como pagada, pedir método de pago
+      // Si está pendiente y queremos marcar como pagada, pedir monto y método de pago
+      const remainingDebt = Math.max((sale.amount || 0) - (sale.amountPaid || 0), 0);
       setSettlingSale(sale);
+      setSettleAmount(String(remainingDebt));
       setIsSettling(true);
     } else {
       // Si ya está pagada y queremos marcar como deuda (poco común pero posible)
@@ -164,35 +167,42 @@ export function SalesList({
   const handleConfirmSettle = async (method: string) => {
     if (!settlingSale || isSubmittingSale) return;
 
+    const remainingDebt = Math.max((settlingSale.amount || 0) - (settlingSale.amountPaid || 0), 0);
+    const amount = Math.min(Number(settleAmount), remainingDebt);
+    if (!amount || amount <= 0) return;
+
     setIsSubmittingSale(true);
     try {
       const res = await fetch(`/api/sales/${settlingSale.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isPaid: true, paymentMethod: method }),
+        body: JSON.stringify({ paymentAmount: amount, paymentMethod: method }),
       });
 
       if (!res.ok) throw new Error("Error al liquidar deuda");
 
       const updatedSale = await res.json();
 
-      toast.success("Venta liquidada", {
-        description: `Se registró el pago por ${method}.`,
+      toast.success(amount >= remainingDebt ? "Venta liquidada" : "Abono registrado", {
+        description: `Se registró el pago de S/ ${amount.toLocaleString()} por ${method}.`,
       });
       setIsSettling(false);
       setSettlingSale(null);
-      
+      setSettleAmount("");
+
       // Update selected group to reflect the paid status
       if (selectedGroup) {
         setSelectedGroup(prev => {
           if (!prev) return prev;
-          const updatedItems = prev.items.map(item => 
-            item.id === updatedSale.id ? { ...item, isPaid: true, paymentMethod: method } : item
+          const updatedItems = prev.items.map(item =>
+            item.id === updatedSale.id ? { ...item, ...updatedSale } : item
           );
-          const allPaid = updatedItems.every(item => item.isPaid);
+          const totalDebt = updatedItems.reduce((acc, item) => acc + Math.max((item.amount || 0) - (item.amountPaid || 0), 0), 0);
+          const allPaid = totalDebt <= 0;
           return {
             ...prev,
             items: updatedItems,
+            totalDebt,
             isPaid: allPaid,
             paymentMethod: allPaid ? method : prev.paymentMethod
           };
@@ -296,8 +306,8 @@ export function SalesList({
   }, [sales, historyDate]);
 
   const groupedTodaySales = useMemo(() => {
-    const groups: Record<string, { clientDni: number, clientName: string, items: ProductSale[], total: number, isPaid: boolean }> = {};
-    
+    const groups: Record<string, { clientDni: number, clientName: string, items: ProductSale[], total: number, totalDebt: number, isPaid: boolean, lastActivity: string, paymentMethod?: string }> = {};
+
     todaySales.forEach(sale => {
       const key = `${sale.clientDni}`;
       if (!groups[key]) {
@@ -306,14 +316,17 @@ export function SalesList({
           clientName: sale.clientDni === 0 ? "Cliente espontáneo" : sale.client?.nameComplete || `DNI ${sale.clientDni}`,
           items: [],
           total: 0,
+          totalDebt: 0,
           isPaid: true,
           lastActivity: sale.saleDate,
           paymentMethod: sale.paymentMethod
         };
       }
+      const debt = Math.max((sale.amount || 0) - (sale.amountPaid || 0), 0);
       groups[key].items.push(sale);
       groups[key].total += sale.amount;
-      if (!sale.isPaid) groups[key].isPaid = false;
+      groups[key].totalDebt += debt;
+      if (debt > 0) groups[key].isPaid = false;
       if (new Date(sale.saleDate) > new Date(groups[key].lastActivity)) {
         groups[key].lastActivity = sale.saleDate;
         groups[key].paymentMethod = sale.paymentMethod;
@@ -328,8 +341,8 @@ export function SalesList({
   }, [todaySales]);
 
   const groupedHistorySales = useMemo(() => {
-    const groups: Record<string, { clientDni: number, clientName: string, items: ProductSale[], total: number, isPaid: boolean }> = {};
-    
+    const groups: Record<string, { clientDni: number, clientName: string, items: ProductSale[], total: number, totalDebt: number, isPaid: boolean, lastActivity: string, paymentMethod?: string }> = {};
+
     historySales.forEach(sale => {
       const key = `${sale.clientDni}`;
       if (!groups[key]) {
@@ -338,14 +351,17 @@ export function SalesList({
           clientName: sale.clientDni === 0 ? "Cliente espontáneo" : sale.client?.nameComplete || `DNI ${sale.clientDni}`,
           items: [],
           total: 0,
+          totalDebt: 0,
           isPaid: true,
           lastActivity: sale.saleDate,
           paymentMethod: sale.paymentMethod
         };
       }
+      const debt = Math.max((sale.amount || 0) - (sale.amountPaid || 0), 0);
       groups[key].items.push(sale);
       groups[key].total += sale.amount;
-      if (!sale.isPaid) groups[key].isPaid = false;
+      groups[key].totalDebt += debt;
+      if (debt > 0) groups[key].isPaid = false;
       if (new Date(sale.saleDate) > new Date(groups[key].lastActivity)) {
         groups[key].lastActivity = sale.saleDate;
         groups[key].paymentMethod = sale.paymentMethod;
@@ -688,7 +704,7 @@ export function SalesList({
                           ? "bg-destructive/15 text-destructive border border-destructive/20"
                           : "bg-success/15 text-success border border-success/20"
                         }`}>
-                      {!group.isPaid ? "Falta cancelar" : "Pagado"}
+                      {!group.isPaid ? `Falta S/ ${group.totalDebt.toLocaleString()}` : "Pagado"}
                     </div>
                   </div>
                 </div>
@@ -929,7 +945,7 @@ export function SalesList({
                               ? "bg-destructive/15 text-destructive"
                               : "bg-success/15 text-success"
                             }`}>
-                          {!group.isPaid ? "Falta cancelar" : "Pagado"}
+                          {!group.isPaid ? `Falta S/ ${group.totalDebt.toLocaleString()}` : "Pagado"}
                         </div>
                       </div>
                       <Button 
@@ -962,9 +978,26 @@ export function SalesList({
           <div className="space-y-4 py-2">
             <div className="text-center space-y-1">
               <p className="text-sm text-muted-foreground">Producto: <span className="text-foreground font-medium">{settlingSale?.product}</span></p>
-              <p className="text-2xl font-black text-primary">S/ {settlingSale?.amount.toLocaleString()}</p>
+              <p className="text-2xl font-black text-primary">
+                S/ {settlingSale ? Math.max((settlingSale.amount || 0) - (settlingSale.amountPaid || 0), 0).toLocaleString() : 0}
+              </p>
+              {(settlingSale?.amountPaid || 0) > 0 && (
+                <p className="text-xs text-muted-foreground">Ya abonó S/ {(settlingSale?.amountPaid || 0).toLocaleString()}</p>
+              )}
             </div>
-            
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-center">Monto a abonar</p>
+              <Input
+                type="number"
+                min={0}
+                max={settlingSale ? Math.max((settlingSale.amount || 0) - (settlingSale.amountPaid || 0), 0) : undefined}
+                value={settleAmount}
+                onChange={(e) => setSettleAmount(e.target.value)}
+                className="h-11 text-center text-lg font-bold rounded-xl bg-secondary/50"
+              />
+            </div>
+
             <div className="space-y-3">
               <p className="text-sm font-medium text-center">¿Cómo canceló el cliente?</p>
               <div className="grid grid-cols-1 gap-2">
@@ -973,7 +1006,7 @@ export function SalesList({
                     key={method}
                     variant="outline"
                     onClick={() => handleConfirmSettle(method)}
-                    disabled={isSubmittingSale}
+                    disabled={isSubmittingSale || !Number(settleAmount) || Number(settleAmount) <= 0}
                     className="h-12 rounded-xl border-secondary bg-secondary/30 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all font-bold"
                   >
                     {method}
@@ -992,19 +1025,27 @@ export function SalesList({
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-              {selectedGroup?.items.map((sale) => (
+              {selectedGroup?.items.map((sale) => {
+                const debt = Math.max((sale.amount || 0) - (sale.amountPaid || 0), 0);
+                return (
                 <div key={sale.id} className="flex items-center justify-between p-3 rounded-xl bg-secondary/30">
                   <div>
-                    <p className="text-sm font-medium">{sale.product}</p>
-                    <p className="text-[10px] text-muted-foreground">{formatSaleDate(sale.saleDate)}</p>
+                    <p className="text-base font-medium">{sale.product}</p>
+                    <p className="text-xs text-muted-foreground">{formatSaleDate(sale.saleDate)}</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <p className="text-sm font-bold">S/ {sale.amount.toLocaleString()}</p>
-                      {sale.isPaid && (
-                        <Badge 
-                          variant="secondary" 
-                          className={`h-4 px-1.5 text-[9px] font-bold border-0 ${
+                      <p className="text-base font-bold">S/ {sale.amount.toLocaleString()}</p>
+                      {debt > 0 && (sale.amountPaid || 0) > 0 && (
+                        <p className="text-sm text-muted-foreground">Abonado S/ {(sale.amountPaid || 0).toLocaleString()}</p>
+                      )}
+                      {debt > 0 && (
+                        <p className="text-sm font-semibold text-destructive">Falta S/ {debt.toLocaleString()}</p>
+                      )}
+                      {debt <= 0 && (
+                        <Badge
+                          variant="secondary"
+                          className={`h-5 px-1.5 text-[11px] font-bold border-0 ${
                             sale.paymentMethod === 'Efectivo' ? 'bg-[#26DE81]/15 text-[#26DE81]' :
                             sale.paymentMethod === 'Plin' ? 'bg-[#5B8DEF]/15 text-[#5B8DEF]' :
                             'bg-[#9B6DD7]/15 text-[#9B6DD7]'
@@ -1014,12 +1055,12 @@ export function SalesList({
                         </Badge>
                       )}
                     </div>
-                    {!sale.isPaid && (
+                    {debt > 0 && (
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={() => togglePendingPayment(sale)}
-                        className="h-7 text-[10px] bg-destructive/15 text-destructive hover:bg-destructive/25 rounded-full"
+                        className="h-7 text-xs bg-destructive/15 text-destructive hover:bg-destructive/25 rounded-full"
                       >
                         Cobrar
                       </Button>
@@ -1030,17 +1071,21 @@ export function SalesList({
                       onClick={() => handleDeleteSale(sale.id)}
                       className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full"
                     >
-                      <Trash2 className="h-3 w-3" />
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
-            
+
             <div className="pt-4 border-t flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground uppercase font-black tracking-wider">Total consumido</p>
+                <p className="text-sm text-muted-foreground uppercase font-black tracking-wider">Total consumido</p>
                 <p className="text-2xl font-black text-primary">S/ {selectedGroup?.total.toLocaleString()}</p>
+                {(selectedGroup?.totalDebt || 0) > 0 && (
+                  <p className="text-sm font-bold text-destructive">Falta S/ {selectedGroup?.totalDebt.toLocaleString()}</p>
+                )}
               </div>
               <Button variant="outline" onClick={() => setIsDetailOpen(false)} className="rounded-xl">
                 Cerrar

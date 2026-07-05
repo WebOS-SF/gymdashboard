@@ -41,6 +41,7 @@ export interface ProductSale {
   saleDate: string
   product: string
   amount: number
+  amountPaid?: number
   clientDni: number
   paymentMethod?: string
   isPaid?: boolean
@@ -63,6 +64,7 @@ export interface Purchase {
   quantity: number
   amount: number
   paymentMethod: string
+  productId?: number | null
   createdBy?: {
     id: number
     username: string

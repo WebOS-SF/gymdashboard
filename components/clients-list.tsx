@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Search, Plus, Edit2, Users, Filter, CheckCircle2, XCircle, CircleDot, CalendarDays, UserCheck } from 'lucide-react'
 import { Client, AttendanceStatus, Weekday } from '@/lib/types'
 import { ClientModal } from './client-modal'
+import { PlanModal } from './plan-modal'
 import { AttendanceCalendarModal } from './attendance-calendar-modal'
 import { TodayAttendeesModal } from './today-attendees-modal'
 import { toast } from 'sonner'
@@ -19,15 +20,18 @@ interface ClientsListProps {
   onUpdateClient: (client: Client) => void
   onAddClient: (client: Client) => void
   onAttendanceChange: (dni: string, status: AttendanceStatus) => void
+  canViewMoney: boolean
 }
 
-export function ClientsList({ clients, onUpdateClient, onAddClient, onAttendanceChange }: ClientsListProps) {
+export function ClientsList({ clients, onUpdateClient, onAddClient, onAttendanceChange, canViewMoney }: ClientsListProps) {
   const [searchDni, setSearchDni] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [calendarClient, setCalendarClient] = useState<Client | null>(null)
   const [isTodayAttendeesOpen, setIsTodayAttendeesOpen] = useState(false)
+  const [dayPlanClient, setDayPlanClient] = useState<Client | null>(null)
+  const [isSavingDayPlan, setIsSavingDayPlan] = useState(false)
 
   const filteredClients = clients.filter((client) => {
     const dni = String(client.dni || '')
@@ -76,6 +80,10 @@ export function ClientsList({ clients, onUpdateClient, onAddClient, onAttendance
         } else {
           onAddClient(payload)
         }
+
+        if (Number(payload.dni) < 0) {
+          setDayPlanClient({ ...payload, planTier: 'por_dia' })
+        }
       }
 
       setIsModalOpen(false)
@@ -91,6 +99,38 @@ export function ClientsList({ clients, onUpdateClient, onAddClient, onAttendance
       })
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleSaveDayPlan = async (plan: Record<string, unknown>) => {
+    if (isSavingDayPlan) return
+
+    setIsSavingDayPlan(true)
+    try {
+      const res = await fetch('/api/client-plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(plan),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Error registrando el pago por día')
+      }
+
+      onUpdateClient(data)
+      setDayPlanClient(null)
+      toast.success('Pago por día registrado', {
+        description: 'La venta ya aparece reflejada en Planes.',
+      })
+    } catch (error) {
+      console.error('Error registrando pago por día:', error)
+      toast.error('No se pudo registrar el pago por día', {
+        description: error instanceof Error ? error.message : 'Inténtalo nuevamente.',
+      })
+    } finally {
+      setIsSavingDayPlan(false)
     }
   }
 
@@ -325,6 +365,18 @@ export function ClientsList({ clients, onUpdateClient, onAddClient, onAttendance
         isSaving={isSaving}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
+      />
+
+      <PlanModal
+        mode="create"
+        clients={clients}
+        client={dayPlanClient}
+        plan={null}
+        canViewMoney={canViewMoney}
+        isOpen={Boolean(dayPlanClient)}
+        isSaving={isSavingDayPlan}
+        onClose={() => setDayPlanClient(null)}
+        onSave={handleSaveDayPlan}
       />
 
       <AttendanceCalendarModal

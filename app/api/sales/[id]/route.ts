@@ -14,11 +14,21 @@ export async function PATCH(
     const body = await request.json()
     const saleId = Number(id)
 
+    const existing = await prisma.salesRecord.findUniqueOrThrow({ where: { id: saleId } })
+
+    let amountPaid = existing.amountPaid
+    if (typeof body.paymentAmount === "number") {
+      amountPaid = Math.min(existing.amount, existing.amountPaid + body.paymentAmount)
+    } else if (typeof body.isPaid === "boolean") {
+      amountPaid = body.isPaid ? existing.amount : 0
+    }
+
     const updatedSale = await prisma.salesRecord.update({
       where: { id: saleId },
       data: {
-        isPaid: body.isPaid,
-        paymentMethod: body.paymentMethod,
+        amountPaid,
+        isPaid: amountPaid >= existing.amount,
+        paymentMethod: body.paymentMethod || existing.paymentMethod,
       },
     })
 

@@ -2,24 +2,30 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
-import { MonthlyData, ProductSale } from '@/lib/types'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { MonthlyData, Purchase } from '@/lib/types'
 import { useTheme } from '@/hooks/use-theme'
 import { useMemo, useState } from 'react'
+import { toLocalDate, formatDebtDate } from '@/lib/date-utils'
+
+const MONTH_NAMES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+]
 
 interface DashboardChartsProps {
   data: MonthlyData[]
-  sales: ProductSale[]
+  purchases: Purchase[]
 }
 
-export function DashboardCharts({ data, sales }: DashboardChartsProps) {
+export function DashboardCharts({ data, purchases }: DashboardChartsProps) {
   const { theme, mounted } = useTheme()
   const [period, setPeriod] = useState<'month' | 'year'>('year')
-  const [productsDate, setProductsDate] = useState<string>('')
-  
+  const [isExpensesModalOpen, setIsExpensesModalOpen] = useState(false)
+  const [expensesCategoryFilter, setExpensesCategoryFilter] = useState<'Todos' | 'Producto' | 'Servicio'>('Todos')
+
   const primaryColor = "#FF6B6B"
-  const accentColor = "#5B8DEF"
   const isDark = !mounted || theme === 'dark'
   const gridColor = isDark ? "#374151" : "#f0f0f0"
   const textColor = isDark ? "#9ca3af" : "#9ca3af"
@@ -36,32 +42,28 @@ export function DashboardCharts({ data, sales }: DashboardChartsProps) {
   const last = chartData[chartData.length - 1]
   const prev = chartData[chartData.length - 2]
 
-  const productsChartData = useMemo(() => {
-    if (!productsDate) {
-      return chartData.slice(-6).map(d => ({ name: d.month, products: d.products }))
-    }
-    const filteredSales = sales.filter(s => {
-      const d = new Date(s.saleDate)
-      const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-      return ds === productsDate
-    })
-    const grouped = new Map<string, number>()
-    for (const s of filteredSales) {
-      grouped.set(s.product, (grouped.get(s.product) || 0) + 1)
-    }
-    return Array.from(grouped.entries()).map(([name, products]) => ({ name, products }))
-  }, [chartData, sales, productsDate])
-
-  const totalProducts = productsDate 
-    ? productsChartData.reduce((a, d) => a + d.products, 0)
-    : chartData.reduce((a, d) => a + d.products, 0)
-
-  const productsChange = last && prev ? last.products - prev.products : 0
-  const productsChangePct = last && prev && prev.products > 0 ? Math.round((productsChange / prev.products) * 100) : 0
-
   const clientsChange = last && prev ? last.clients - prev.clients : 0
   const clientsChangePct = last && prev && prev.clients > 0 ? Math.round((clientsChange / prev.clients) * 100) : 0
-  
+
+  const currentYear = new Date().getFullYear()
+  const currentMonth = new Date().getMonth()
+
+  const monthlyExpensesList = useMemo(() => {
+    return (purchases || []).filter(purchase => {
+      const d = toLocalDate(purchase.purchaseDate)
+      return d.getFullYear() === currentYear && d.getMonth() === currentMonth
+    }).sort((a, b) => toLocalDate(b.purchaseDate).getTime() - toLocalDate(a.purchaseDate).getTime())
+  }, [purchases, currentYear, currentMonth])
+
+  const totalExpenses = monthlyExpensesList.reduce((acc, p) => acc + (p.amount || 0), 0)
+  const productExpenses = monthlyExpensesList.filter(p => p.category === 'Producto').reduce((acc, p) => acc + (p.amount || 0), 0)
+  const serviceExpenses = monthlyExpensesList.filter(p => p.category === 'Servicio').reduce((acc, p) => acc + (p.amount || 0), 0)
+
+  const expensesByCategory = useMemo(() => {
+    if (expensesCategoryFilter === 'Todos') return monthlyExpensesList
+    return monthlyExpensesList.filter(p => p.category === expensesCategoryFilter)
+  }, [monthlyExpensesList, expensesCategoryFilter])
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       {/* Main Chart */}
@@ -133,50 +135,35 @@ export function DashboardCharts({ data, sales }: DashboardChartsProps) {
 
       {/* Side Charts */}
       <div className="space-y-4">
-        {/* Mini Chart 1 */}
-        <Card className="rounded-2xl border-0 shadow-sm bg-card">
+        {/* Mini Chart 1 - Gastos del Mes */}
+        <Card
+          className="rounded-2xl border-0 shadow-sm bg-card cursor-pointer hover:shadow-lg transition-all duration-200"
+          onClick={() => {
+            setExpensesCategoryFilter('Todos')
+            setIsExpensesModalOpen(true)
+          }}
+        >
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground shrink-0">Productos Vendidos</CardTitle>
-              <div className="flex items-center gap-2">
-                <Input 
-                  type="date" 
-                  value={productsDate} 
-                  onChange={e => setProductsDate(e.target.value)}
-                  className="h-7 w-[110px] sm:w-[120px] text-xs px-2 py-1 bg-secondary/50 border-0 text-muted-foreground"
-                />
-                {productsDate ? (
-                  <button onClick={() => setProductsDate('')} className="text-xs text-muted-foreground hover:text-foreground shrink-0">
-                    Limpiar
-                  </button>
-                ) : (
-                  <span className={`text-xs font-medium px-2 py-1 rounded-full shrink-0 ${productsChangePct >= 0 ? 'text-success bg-success/10' : 'text-destructive bg-destructive/10'}`}>
-                    {productsChangePct >= 0 ? '+' : ''}{productsChangePct}%
-                  </span>
-                )}
-              </div>
+              <CardTitle className="text-sm font-medium text-muted-foreground shrink-0">Gastos del Mes</CardTitle>
+              <span className="text-xs font-medium px-2 py-1 rounded-full shrink-0 text-destructive bg-destructive/10">
+                {monthlyExpensesList.length} registro{monthlyExpensesList.length === 1 ? '' : 's'}
+              </span>
             </div>
             <div className="mt-1">
-              <p className="text-2xl font-bold text-foreground">{totalProducts}</p>
+              <p className="text-2xl font-bold text-foreground">S/ {totalExpenses.toLocaleString()}</p>
             </div>
           </CardHeader>
           <CardContent className="pb-4">
-            <div className="h-[80px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={productsChartData}>
-                  <Tooltip 
-                    cursor={{fill: 'transparent'}}
-                    contentStyle={{ backgroundColor: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: '8px', fontSize: '12px' }}
-                    labelStyle={{ color: tooltipText, fontWeight: 600, marginBottom: '4px' }}
-                    formatter={(val: number) => [val, 'Ventas']}
-                  />
-                  <Bar 
-                    dataKey="products" 
-                    fill={accentColor}
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Producto</span>
+                <span className="font-semibold text-foreground">S/ {productExpenses.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Servicio</span>
+                <span className="font-semibold text-foreground">S/ {serviceExpenses.toLocaleString()}</span>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -216,6 +203,61 @@ export function DashboardCharts({ data, sales }: DashboardChartsProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Modal de Gastos del Mes */}
+      <Dialog open={isExpensesModalOpen} onOpenChange={setIsExpensesModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Gastos del Mes - {MONTH_NAMES[currentMonth]} {currentYear}</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center gap-2 mt-2">
+            {(['Todos', 'Producto', 'Servicio'] as const).map(option => (
+              <button
+                key={option}
+                onClick={() => setExpensesCategoryFilter(option)}
+                className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                  expensesCategoryFilter === option
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary/50 text-muted-foreground hover:bg-secondary'
+                }`}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+          <div className="space-y-3 mt-4">
+            <div className="flex justify-between items-center px-1">
+              <span className="text-xs text-muted-foreground">{expensesByCategory.length} registro{expensesByCategory.length === 1 ? '' : 's'}</span>
+              <span className="text-sm font-bold text-foreground">
+                S/ {expensesByCategory.reduce((sum, p) => sum + (p.amount || 0), 0).toLocaleString()}
+              </span>
+            </div>
+            {expensesByCategory.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">No hay gastos en esta categoría este mes</p>
+            ) : (
+              <div className="space-y-2">
+                {expensesByCategory.map(purchase => (
+                  <div key={purchase.id} className="p-3 bg-secondary/30 rounded-lg">
+                    <div className="flex justify-between items-center">
+                      <div className="flex-1">
+                        <p className="font-medium text-foreground">{purchase.description}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {purchase.category} · {formatDebtDate(purchase.purchaseDate)}
+                          {purchase.category !== 'Servicio' && ` · Cant. ${purchase.quantity}`}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-foreground">S/ {purchase.amount.toLocaleString()}</p>
+                        <p className="text-[10px] text-muted-foreground">{purchase.paymentMethod}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

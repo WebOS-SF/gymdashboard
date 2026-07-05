@@ -132,6 +132,10 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
     setClients(prev => prev.map(c => c.dni === dni ? { ...c, todayAttendance: status } : c))
   }
 
+  const handleUpdateSale = (updatedSale: ProductSale) => {
+    setSales(prev => prev.map(s => s.id === updatedSale.id ? updatedSale : s))
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader user={user} onLogout={onLogout} />
@@ -140,10 +144,18 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
         {isSuperadmin && (
           <>
             {/* Stats Grid with Balance Card */}
-            <StatsCards clients={clients} products={products} analytics={analytics} sales={sales} />
+            <StatsCards
+              clients={clients}
+              products={products}
+              analytics={analytics}
+              sales={sales}
+              purchases={purchases}
+              onUpdateClient={handleUpdateClient}
+              onUpdateSale={handleUpdateSale}
+            />
 
             {/* Charts Section */}
-            <DashboardCharts data={monthlyData} sales={sales} />
+            <DashboardCharts data={monthlyData} purchases={purchases} />
           </>
         )}
 
@@ -240,6 +252,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
             onUpdateClient={handleUpdateClient}
             onAddClient={handleAddClient}
             onAttendanceChange={handleAttendanceChange}
+            canViewMoney={isSuperadmin}
           />
         ) : viewMode === 'plans' ? (
           <PlansList
@@ -266,9 +279,11 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
         ) : viewMode === 'purchases' && isSuperadmin ? (
           <PurchasesList
             purchases={purchases}
+            products={products}
             onAddPurchase={handleAddPurchase}
             onUpdatePurchase={handleUpdatePurchase}
             onDeletePurchase={handleDeletePurchase}
+            onUpdateProduct={handleUpdateProduct}
           />
         ) : (
           <AdminAccounts currentUserId={user.id} />

@@ -15,6 +15,7 @@ model Product {
   category    String
   createdById Int?
   createdBy   AdminAccount? @relation("ProductsCreated", fields: [createdById], references: [id])
+  purchases   Purchase[]
 }
 
 model AdminAccount {
@@ -94,6 +95,7 @@ model SalesRecord {
   amount        Float
   clientDni     Int
   isPaid        Boolean       @default(true)
+  amountPaid    Float         @default(0)
   soldById      Int?
   paymentMethod String        @default("Efectivo")
   client        Client        @relation(fields: [clientDni], references: [dni], onDelete: Cascade)
@@ -134,9 +136,11 @@ model Purchase {
   quantity      Int           @default(1)
   amount        Float
   paymentMethod String        @default("Efectivo")
+  productId     Int?
   createdById   Int?
   createdAt     DateTime      @default(now())
   createdBy     AdminAccount? @relation("PurchasesCreated", fields: [createdById], references: [id])
+  product       Product?      @relation(fields: [productId], references: [id])
 }
 
 model Factura {

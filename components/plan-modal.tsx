@@ -110,10 +110,26 @@ function buildInitialState(mode: PlanModalMode, client: Client | null, plan: Cli
 
   const d = new Date()
   const todayLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const initialPlanTier = client?.planTier || 'basic'
+
+  if (initialPlanTier === 'por_dia') {
+    return {
+      clientDni: client?.dni || '',
+      planTier: 'por_dia',
+      joinDate: todayLocal,
+      durationValue: 1,
+      durationUnit: 'day',
+      attendancePreset: 'custom',
+      attendanceDays: [weekdayOrder[(d.getDay() + 6) % 7]],
+      paymentMethod: 'Efectivo',
+      turn: 'Mañana',
+      amountPaid: 0,
+    }
+  }
 
   return {
     clientDni: client?.dni || '',
-    planTier: client?.planTier || 'basic',
+    planTier: initialPlanTier,
     joinDate: todayLocal,
     durationValue: 0,
     durationUnit: 'month',

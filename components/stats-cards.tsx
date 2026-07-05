@@ -4,45 +4,26 @@ import { useState, useMemo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Users, Package, DollarSign, TrendingUp, CreditCard, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
-import { AnalyticsSummary, Client, Product, ProductSale } from '@/lib/types'
+import { AnalyticsSummary, Client, Product, ProductSale, Purchase } from '@/lib/types'
+import { toLocalDate, toLocalDateStr, formatDebtDate } from '@/lib/date-utils'
+import { toast } from 'sonner'
 
 const MONTH_NAMES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
 ]
 
-// Parsea una fecha evitando el corrimiento de día que ocurre con strings "YYYY-MM-DD":
-// `new Date("2026-07-11")` se interpreta como medianoche UTC, y en un navegador con
-// huso horario negativo (Perú, UTC-5) eso cae en el día anterior (10/07). Para esos
-// strings de solo fecha, los construimos como medianoche LOCAL en su lugar.
-const toLocalDate = (date: string | Date): Date => {
-  if (typeof date === 'string') {
-    const match = date.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-    if (match) {
-      const [, y, m, d] = match
-      return new Date(Number(y), Number(m) - 1, Number(d))
-    }
-  }
-  return new Date(date)
-}
-
-// Convierte una fecha (string ISO o Date) a YYYY-MM-DD usando la hora local del navegador
-const toLocalDateStr = (date: string | Date) => {
-  const d = toLocalDate(date)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-const formatDebtDate = (date: string | Date) =>
-  new Intl.DateTimeFormat('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(toLocalDate(date))
-
 interface StatsCardsProps {
   clients: Client[]
   products: Product[]
   analytics: AnalyticsSummary | null
   sales: ProductSale[]
+  purchases: Purchase[]
+  onUpdateClient: (client: Client) => void
+  onUpdateSale: (sale: ProductSale) => void
 }
 
-export function StatsCards({ clients, products, analytics, sales }: StatsCardsProps) {
+export function StatsCards({ clients, products, analytics, sales, purchases, onUpdateClient, onUpdateSale }: StatsCardsProps) {
   // --- Selector de mes ---
   const now = new Date()
   const [selectedYear, setSelectedYear] = useState(now.getFullYear())
@@ -52,6 +33,86 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [isProductDebtsModalOpen, setIsProductDebtsModalOpen] = useState(false)
   const [isPlanDebtsModalOpen, setIsPlanDebtsModalOpen] = useState(false)
+  const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false)
+  const [incomeCategoryFilter, setIncomeCategoryFilter] = useState<'Todos' | 'Membresias' | 'Productos'>('Todos')
+  const [incomeSubFilter, setIncomeSubFilter] = useState<string>('Todos')
+
+  // --- Registro de pagos de deudas ---
+  const PAYMENT_METHODS = ['Efectivo', 'Plin', 'Yape']
+
+  const [payingPlanId, setPayingPlanId] = useState<number | null>(null)
+  const [planPaymentAmount, setPlanPaymentAmount] = useState('')
+  const [planPaymentMethod, setPlanPaymentMethod] = useState('Efectivo')
+  const [isPayingPlan, setIsPayingPlan] = useState(false)
+
+  const [payingSaleId, setPayingSaleId] = useState<number | null>(null)
+  const [salePaymentAmount, setSalePaymentAmount] = useState('')
+  const [salePaymentMethod, setSalePaymentMethod] = useState('Efectivo')
+  const [isPayingSale, setIsPayingSale] = useState(false)
+
+  const handlePayPlanDebt = async (planId: number, currentAmountPaid: number, debt: number) => {
+    const amount = Math.min(Number(planPaymentAmount), debt)
+    if (!amount || amount <= 0 || isPayingPlan) return
+
+    setIsPayingPlan(true)
+    try {
+      const res = await fetch(`/api/client-plans/${planId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amountPaid: currentAmountPaid + amount, paymentMethod: planPaymentMethod }),
+      })
+      const updatedClient = await res.json()
+
+      if (!res.ok) {
+        throw new Error(updatedClient?.error || 'No se pudo registrar el pago')
+      }
+
+      onUpdateClient(updatedClient)
+      setPayingPlanId(null)
+      setPlanPaymentAmount('')
+      setPlanPaymentMethod('Efectivo')
+      toast.success('Pago registrado', { description: 'La deuda de la membresía fue actualizada.' })
+    } catch (error) {
+      console.error('Error registrando pago de membresía:', error)
+      toast.error('No se pudo registrar el pago', {
+        description: error instanceof Error ? error.message : 'Inténtalo nuevamente.',
+      })
+    } finally {
+      setIsPayingPlan(false)
+    }
+  }
+
+  const handlePaySaleDebt = async (saleId: number, debt: number) => {
+    const amount = Math.min(Number(salePaymentAmount), debt)
+    if (!amount || amount <= 0 || isPayingSale) return
+
+    setIsPayingSale(true)
+    try {
+      const res = await fetch(`/api/sales/${saleId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentAmount: amount, paymentMethod: salePaymentMethod }),
+      })
+      const updatedSale = await res.json()
+
+      if (!res.ok) {
+        throw new Error(updatedSale?.error || 'No se pudo registrar el pago')
+      }
+
+      onUpdateSale(updatedSale)
+      setPayingSaleId(null)
+      setSalePaymentAmount('')
+      setSalePaymentMethod('Efectivo')
+      toast.success('Pago registrado', { description: 'La deuda del producto fue actualizada.' })
+    } catch (error) {
+      console.error('Error registrando pago de producto:', error)
+      toast.error('No se pudo registrar el pago', {
+        description: error instanceof Error ? error.message : 'Inténtalo nuevamente.',
+      })
+    } finally {
+      setIsPayingSale(false)
+    }
+  }
 
   const goToPrevDay = () => {
     setSelectedDate(prev => {
@@ -140,15 +201,15 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
     const todayStr = toLocalDateStr(selectedDate)
 
     return (sales || []).filter(sale => {
-      return toLocalDateStr(sale.saleDate) === todayStr && sale.isPaid === true
-    }).reduce((acc, sale) => acc + (sale.amount || 0), 0)
+      return toLocalDateStr(sale.saleDate) === todayStr
+    }).reduce((acc, sale) => acc + (sale.amountPaid || 0), 0)
   }, [sales, selectedDate])
 
   const todaySalesCount = useMemo(() => {
     const todayStr = toLocalDateStr(selectedDate)
 
     return (sales || []).filter(sale => {
-      return toLocalDateStr(sale.saleDate) === todayStr && sale.isPaid === true
+      return toLocalDateStr(sale.saleDate) === todayStr && (sale.amountPaid || 0) > 0
     }).length
   }, [sales, selectedDate])
 
@@ -161,9 +222,6 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
 
   // --- Estadísticas globales (sin filtro de mes) ---
   const activeClients = clients?.filter(c => c.status === 'active').length || 0
-  const pendingPayments = clients?.filter(
-    c => c.status === 'pending_moderate' || c.status === 'pending_critical'
-  ).length || 0
   const totalStock = products?.reduce((acc, p) => acc + p.stock, 0) || 0
   const totalDebts = useMemo(() => {
     const todayStr = toLocalDateStr(selectedDate)
@@ -178,15 +236,15 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
 
     // Deudas de ventas del día seleccionado
     const productDebts = (sales || []).filter(sale => {
-      return toLocalDateStr(sale.saleDate) === todayStr && !sale.isPaid
-    }).reduce((acc, sale) => acc + (sale.amount || 0), 0)
+      return toLocalDateStr(sale.saleDate) === todayStr
+    }).reduce((acc, sale) => acc + Math.max((sale.amount || 0) - (sale.amountPaid || 0), 0), 0)
 
     return planDebts + productDebts
   }, [clients, sales, selectedDate])
 
   // Deudas del mes (planes) con listado
   const monthlyPlanDebts = useMemo(() => {
-    const debtsList: Array<{ name: string; amount: number; dni: string; date: string }> = []
+    const debtsList: Array<{ name: string; amount: number; dni: string; date: string; planId: number; amountPaid: number }> = []
 
     clients?.forEach(client => {
       (client.plans || []).forEach(plan => {
@@ -201,7 +259,9 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
             name: client.name || `DNI ${client.dni}`,
             amount: plan.debt,
             dni: String(client.dni),
-            date: plan.startDate
+            date: plan.startDate,
+            planId: plan.id,
+            amountPaid: plan.amountPaid
           })
         }
       })
@@ -212,10 +272,12 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
 
   // Deudas de productos con listado
   const productDebtsList = useMemo(() => {
-    const debtsMap = new Map<string, { name: string; amount: number; dni: string; details: Array<{ amount: number; date: string; product: string }> }>()
+    const debtsMap = new Map<string, { name: string; amount: number; dni: string; details: Array<{ id: number; amount: number; amountPaid: number; debt: number; date: string; product: string }> }>()
 
     ;(sales || []).forEach((sale: any) => {
-      if (!sale.isPaid) {
+      const debt = (sale.amount || 0) - (sale.amountPaid || 0)
+
+      if (debt > 0) {
         const saleDate = toLocalDate(sale.saleDate)
 
         if (
@@ -225,15 +287,15 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
           const dni = String(sale.clientDni)
           const existing = debtsMap.get(dni)
           const clientName = sale.client?.nameComplete || `DNI ${sale.clientDni}`
-          const detail = { amount: sale.amount || 0, date: sale.saleDate, product: sale.product }
+          const detail = { id: sale.id, amount: sale.amount || 0, amountPaid: sale.amountPaid || 0, debt, date: sale.saleDate, product: sale.product }
 
           if (existing) {
-            existing.amount += sale.amount || 0
+            existing.amount += debt
             existing.details.push(detail)
           } else {
             debtsMap.set(dni, {
               name: clientName,
-              amount: sale.amount || 0,
+              amount: debt,
               dni,
               details: [detail]
             })
@@ -254,19 +316,91 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
       return acc + plansInMonth.reduce((s, p) => s + (p.amountPaid || 0), 0)
     }, 0) || 0
 
-    // Calcular ventas de productos pagadas en el mes seleccionado
+    // Calcular lo cobrado (amountPaid) de ventas de productos en el mes seleccionado
     const productIncome = (sales || []).filter(sale => {
       const saleDate = toLocalDate(sale.saleDate)
-      return saleDate.getFullYear() === selectedYear && saleDate.getMonth() === selectedMonth && sale.isPaid === true
-    }).reduce((acc, sale) => acc + (sale.amount || 0), 0)
+      return saleDate.getFullYear() === selectedYear && saleDate.getMonth() === selectedMonth
+    }).reduce((acc, sale) => acc + (sale.amountPaid || 0), 0)
 
     return planIncome + productIncome
   }, [clients, sales, selectedYear, selectedMonth])
   const salesRevenue = analytics?.totalRevenue || 0
 
+  // Gastos del mes (para restarlos del ingreso mensual)
+  const filteredExpenses = useMemo(() => {
+    return (purchases || []).filter(purchase => {
+      const d = toLocalDate(purchase.purchaseDate)
+      return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth
+    }).reduce((acc, purchase) => acc + (purchase.amount || 0), 0)
+  }, [purchases, selectedYear, selectedMonth])
+
+  const netMonthlyIncome = monthlyIncome - filteredExpenses
+
+  // Detalle de ingresos por membresía en el mes seleccionado
+  const monthlyPlanIncomeList = useMemo(() => {
+    const list: Array<{ name: string; planName: string; amount: number; date: string; dni: string }> = []
+
+    clients?.forEach(client => {
+      (client.plans || []).forEach(plan => {
+        const d = toLocalDate(plan.startDate)
+        if (d.getFullYear() === selectedYear && d.getMonth() === selectedMonth) {
+          list.push({
+            name: client.name || `DNI ${client.dni}`,
+            planName: plan.name,
+            amount: plan.amountPaid || 0,
+            date: plan.startDate,
+            dni: String(client.dni)
+          })
+        }
+      })
+    })
+
+    return list.sort((a, b) => b.amount - a.amount)
+  }, [clients, selectedYear, selectedMonth])
+
+  // Detalle de ingresos por venta de productos en el mes seleccionado
+  const monthlyProductIncomeList = useMemo(() => {
+    return (sales || []).filter(sale => {
+      const d = toLocalDate(sale.saleDate)
+      return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth && (sale.amountPaid || 0) > 0
+    }).map(sale => ({
+      name: sale.client?.nameComplete || `DNI ${sale.clientDni}`,
+      product: sale.product,
+      amount: sale.amountPaid || 0,
+      date: sale.saleDate
+    })).sort((a, b) => b.amount - a.amount)
+  }, [sales, selectedYear, selectedMonth])
+
+  const planNameOptions = useMemo(() => {
+    return Array.from(new Set(monthlyPlanIncomeList.map(p => p.planName)))
+  }, [monthlyPlanIncomeList])
+
+  const productNameOptions = useMemo(() => {
+    return Array.from(new Set(monthlyProductIncomeList.map(p => p.product)))
+  }, [monthlyProductIncomeList])
+
+  const incomeDetailList = useMemo(() => {
+    if (incomeCategoryFilter === 'Membresias') {
+      return monthlyPlanIncomeList
+        .filter(p => incomeSubFilter === 'Todos' || p.planName === incomeSubFilter)
+        .map(p => ({ name: p.name, type: p.planName, amount: p.amount, date: p.date }))
+    }
+
+    if (incomeCategoryFilter === 'Productos') {
+      return monthlyProductIncomeList
+        .filter(p => incomeSubFilter === 'Todos' || p.product === incomeSubFilter)
+        .map(p => ({ name: p.name, type: p.product, amount: p.amount, date: p.date }))
+    }
+
+    return [
+      ...monthlyPlanIncomeList.map(p => ({ name: p.name, type: p.planName, amount: p.amount, date: p.date })),
+      ...monthlyProductIncomeList.map(p => ({ name: p.name, type: p.product, amount: p.amount, date: p.date }))
+    ].sort((a, b) => toLocalDate(b.date).getTime() - toLocalDate(a.date).getTime())
+  }, [incomeCategoryFilter, incomeSubFilter, monthlyPlanIncomeList, monthlyProductIncomeList])
+
   const newClientsThisMonth = Math.floor((clients?.length || 0) * 0.15)
-  const previousMonthIncome = monthlyIncome * 0.85
-  const incomeChange = monthlyIncome - previousMonthIncome
+  const previousMonthIncome = netMonthlyIncome * 0.85
+  const incomeChange = netMonthlyIncome - previousMonthIncome
   const incomeChangePercent = previousMonthIncome > 0 ? Math.round((incomeChange / previousMonthIncome) * 100) : 0
 
   const stats = [
@@ -281,12 +415,18 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
     },
     {
       title: 'Ingreso Mensual',
-      value: `S/ ${monthlyIncome.toLocaleString()}`,
-      subtitle: `${pendingPayments} con cobranza pendiente`,
+      value: `S/ ${netMonthlyIncome.toLocaleString()}`,
+      subtitle: `Gastos: S/ ${filteredExpenses.toLocaleString()}`,
       icon: DollarSign,
       iconBg: 'bg-gradient-to-br from-[#5B8DEF] to-[#4a7de0]',
       trend: `${incomeChangePercent > 0 ? '+' : ''}${incomeChangePercent}%`,
-      trendUp: incomeChangePercent > 0
+      trendUp: incomeChangePercent > 0,
+      isClickable: true,
+      onClick: () => {
+        setIncomeCategoryFilter('Todos')
+        setIncomeSubFilter('Todos')
+        setIsIncomeModalOpen(true)
+      }
     },
     {
       title: 'Deudas de Membresías',
@@ -463,11 +603,67 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
                         <p className="font-bold text-foreground">S/ {debt.amount.toLocaleString()}</p>
                       </div>
                     </div>
-                    <div className="mt-2 pt-2 border-t border-border/50 space-y-1">
+                    <div className="mt-2 pt-2 border-t border-border/50 space-y-2">
                       {debt.details.map((detail: any, dIdx: number) => (
-                        <div key={dIdx} className="flex justify-between items-center text-xs text-muted-foreground">
-                          <span>{detail.product} · {formatDebtDate(detail.date)}</span>
-                          <span>S/ {detail.amount.toLocaleString()}</span>
+                        <div key={dIdx} className="space-y-1">
+                          <div className="flex justify-between items-center text-xs text-muted-foreground">
+                            <span>
+                              {detail.product} · {formatDebtDate(detail.date)}
+                              {detail.amountPaid > 0 ? ` · Abonado S/ ${detail.amountPaid.toLocaleString()}` : ''}
+                            </span>
+                            <span>S/ {detail.debt.toLocaleString()}</span>
+                          </div>
+                          {payingSaleId === detail.id ? (
+                            <div className="space-y-1.5">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={detail.debt}
+                                  value={salePaymentAmount}
+                                  onChange={(e) => setSalePaymentAmount(e.target.value)}
+                                  placeholder="Monto abonado"
+                                  autoFocus
+                                  className="h-7 flex-1 rounded-lg bg-card border-0 px-2 text-xs text-foreground"
+                                />
+                                {PAYMENT_METHODS.map(method => (
+                                  <button
+                                    key={method}
+                                    onClick={() => setSalePaymentMethod(method)}
+                                    className={`text-[10px] font-medium px-2 py-1 rounded-lg transition-colors ${
+                                      salePaymentMethod === method
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'bg-card text-muted-foreground hover:bg-secondary'
+                                    }`}
+                                  >
+                                    {method}
+                                  </button>
+                                ))}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handlePaySaleDebt(detail.id, detail.debt)}
+                                  disabled={isPayingSale}
+                                  className="text-[10px] font-medium px-2 py-1 rounded-lg bg-[#26DE81] text-white hover:opacity-90 disabled:opacity-50"
+                                >
+                                  Confirmar
+                                </button>
+                                <button
+                                  onClick={() => { setPayingSaleId(null); setSalePaymentAmount('') }}
+                                  className="text-[10px] font-medium px-2 py-1 rounded-lg text-muted-foreground hover:bg-secondary"
+                                >
+                                  Cancelar
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => { setPayingSaleId(detail.id); setSalePaymentAmount(''); setSalePaymentMethod('Efectivo') }}
+                              className="text-[10px] font-medium px-2 py-0.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20"
+                            >
+                              Registrar pago
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -491,13 +687,172 @@ export function StatsCards({ clients, products, analytics, sales }: StatsCardsPr
             ) : (
               <div className="space-y-2">
                 {monthlyPlanDebts.map((debt: any, idx: number) => (
+                  <div key={idx} className="p-3 bg-secondary/30 rounded-lg space-y-2">
+                    <div className="flex justify-between items-center">
+                      <div className="flex-1">
+                        <p className="font-medium text-foreground">{debt.name}</p>
+                        <p className="text-xs text-muted-foreground">DNI: {debt.dni} · {formatDebtDate(debt.date)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-foreground">S/ {debt.amount.toLocaleString()}</p>
+                      </div>
+                    </div>
+                    {payingPlanId === debt.planId ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={0}
+                            max={debt.amount}
+                            value={planPaymentAmount}
+                            onChange={(e) => setPlanPaymentAmount(e.target.value)}
+                            placeholder="Monto abonado"
+                            autoFocus
+                            className="h-8 flex-1 rounded-lg bg-card border-0 px-2 text-sm text-foreground"
+                          />
+                          {PAYMENT_METHODS.map(method => (
+                            <button
+                              key={method}
+                              onClick={() => setPlanPaymentMethod(method)}
+                              className={`text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors ${
+                                planPaymentMethod === method
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'bg-card text-muted-foreground hover:bg-secondary'
+                              }`}
+                            >
+                              {method}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handlePayPlanDebt(debt.planId, debt.amountPaid, debt.amount)}
+                            disabled={isPayingPlan}
+                            className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#26DE81] text-white hover:opacity-90 disabled:opacity-50"
+                          >
+                            Confirmar
+                          </button>
+                          <button
+                            onClick={() => { setPayingPlanId(null); setPlanPaymentAmount('') }}
+                            className="text-xs font-medium px-2 py-1.5 rounded-lg text-muted-foreground hover:bg-secondary"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => { setPayingPlanId(debt.planId); setPlanPaymentAmount(''); setPlanPaymentMethod('Efectivo') }}
+                        className="text-xs font-medium px-3 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20"
+                      >
+                        Registrar pago
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Ingreso Mensual */}
+      <Dialog open={isIncomeModalOpen} onOpenChange={setIsIncomeModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Ingreso Mensual - {MONTH_NAMES[selectedMonth]} {selectedYear}</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center gap-2 mt-2">
+            {(['Todos', 'Membresias', 'Productos'] as const).map(option => (
+              <button
+                key={option}
+                onClick={() => {
+                  setIncomeCategoryFilter(option)
+                  setIncomeSubFilter('Todos')
+                }}
+                className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                  incomeCategoryFilter === option
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary/50 text-muted-foreground hover:bg-secondary'
+                }`}
+              >
+                {option === 'Membresias' ? 'Membresías' : option}
+              </button>
+            ))}
+          </div>
+          {incomeCategoryFilter === 'Membresias' && planNameOptions.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <button
+                onClick={() => setIncomeSubFilter('Todos')}
+                className={`text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${
+                  incomeSubFilter === 'Todos'
+                    ? 'bg-primary/80 text-primary-foreground'
+                    : 'bg-secondary/30 text-muted-foreground hover:bg-secondary'
+                }`}
+              >
+                Todos los planes
+              </button>
+              {planNameOptions.map(planName => (
+                <button
+                  key={planName}
+                  onClick={() => setIncomeSubFilter(planName)}
+                  className={`text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${
+                    incomeSubFilter === planName
+                      ? 'bg-primary/80 text-primary-foreground'
+                      : 'bg-secondary/30 text-muted-foreground hover:bg-secondary'
+                  }`}
+                >
+                  {planName}
+                </button>
+              ))}
+            </div>
+          )}
+          {incomeCategoryFilter === 'Productos' && productNameOptions.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <button
+                onClick={() => setIncomeSubFilter('Todos')}
+                className={`text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${
+                  incomeSubFilter === 'Todos'
+                    ? 'bg-primary/80 text-primary-foreground'
+                    : 'bg-secondary/30 text-muted-foreground hover:bg-secondary'
+                }`}
+              >
+                Todos los productos
+              </button>
+              {productNameOptions.map(productName => (
+                <button
+                  key={productName}
+                  onClick={() => setIncomeSubFilter(productName)}
+                  className={`text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${
+                    incomeSubFilter === productName
+                      ? 'bg-primary/80 text-primary-foreground'
+                      : 'bg-secondary/30 text-muted-foreground hover:bg-secondary'
+                  }`}
+                >
+                  {productName}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="space-y-3 mt-4">
+            <div className="flex justify-between items-center px-1">
+              <span className="text-xs text-muted-foreground">{incomeDetailList.length} registro{incomeDetailList.length === 1 ? '' : 's'}</span>
+              <span className="text-sm font-bold text-foreground">
+                S/ {incomeDetailList.reduce((sum, i) => sum + i.amount, 0).toLocaleString()}
+              </span>
+            </div>
+            {incomeDetailList.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">No hay ingresos en esta categoría este mes</p>
+            ) : (
+              <div className="space-y-2">
+                {incomeDetailList.map((item, idx) => (
                   <div key={idx} className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
                     <div className="flex-1">
-                      <p className="font-medium text-foreground">{debt.name}</p>
-                      <p className="text-xs text-muted-foreground">DNI: {debt.dni} · {formatDebtDate(debt.date)}</p>
+                      <p className="font-medium text-foreground">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">{item.type} · {formatDebtDate(item.date)}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-foreground">S/ {debt.amount.toLocaleString()}</p>
+                      <p className="font-bold text-foreground">S/ {item.amount.toLocaleString()}</p>
                     </div>
                   </div>
                 ))}

@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/table";
 import { ButtonSpinner } from "@/components/ui/button-spinner";
 import { Search, Plus, Edit2, Trash2, Receipt, X, Check } from "lucide-react";
-import { Purchase } from "@/lib/types";
+import { Product, Purchase } from "@/lib/types";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,9 +46,11 @@ const CATEGORY_OPTIONS = ["Producto", "Servicio"] as const;
 
 interface PurchasesListProps {
   purchases: Purchase[];
+  products: Product[];
   onAddPurchase: (purchase: Purchase) => void;
   onUpdatePurchase: (purchase: Purchase) => void;
   onDeletePurchase: (id: number) => void;
+  onUpdateProduct: (product: Product) => void;
 }
 
 const toDateInputValue = (value: string) => value.slice(0, 10);
@@ -60,6 +62,7 @@ type PurchaseForm = {
   quantity: number;
   amount: number;
   paymentMethod: string;
+  productId: number | null;
 };
 
 const emptyForm: PurchaseForm = {
@@ -69,13 +72,16 @@ const emptyForm: PurchaseForm = {
   quantity: 1,
   amount: 0,
   paymentMethod: "Efectivo",
+  productId: null,
 };
 
 export function PurchasesList({
   purchases,
+  products,
   onAddPurchase,
   onUpdatePurchase,
   onDeletePurchase,
+  onUpdateProduct,
 }: PurchasesListProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [isAdding, setIsAdding] = useState(false);
@@ -97,6 +103,7 @@ export function PurchasesList({
 
   const handleAddPurchase = async () => {
     if (isCreating || !newPurchase.description || !newPurchase.category || !newPurchase.amount) return;
+    if (newPurchase.category === "Producto" && !newPurchase.productId) return;
 
     setIsCreating(true);
     try {
@@ -111,7 +118,9 @@ export function PurchasesList({
         throw new Error(created?.error || "No se pudo registrar la compra");
       }
 
-      onAddPurchase(created);
+      const { updatedProduct, ...purchase } = created;
+      onAddPurchase(purchase);
+      if (updatedProduct) onUpdateProduct(updatedProduct);
       setNewPurchase(emptyForm);
       setIsAdding(false);
       toast.success("Compra registrada", {
@@ -136,6 +145,7 @@ export function PurchasesList({
       quantity: purchase.quantity,
       amount: purchase.amount,
       paymentMethod: purchase.paymentMethod,
+      productId: purchase.productId ?? null,
     });
   };
 
@@ -146,6 +156,7 @@ export function PurchasesList({
 
   const handleSaveEdit = async () => {
     if (!editForm || editingId === null || isUpdating) return;
+    if (editForm.category === "Producto" && !editForm.productId) return;
 
     setIsUpdating(true);
     try {
@@ -160,7 +171,9 @@ export function PurchasesList({
         throw new Error(updated?.error || "No se pudo actualizar la compra");
       }
 
-      onUpdatePurchase(updated);
+      const { affectedProducts, ...purchase } = updated;
+      onUpdatePurchase(purchase);
+      (affectedProducts || []).forEach((product: Product) => onUpdateProduct(product));
       setEditingId(null);
       setEditForm(null);
       toast.success("Compra actualizada", {
@@ -185,12 +198,14 @@ export function PurchasesList({
         method: "DELETE",
       });
 
+      const result = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || "No se pudo eliminar la compra");
+        throw new Error(result?.error || "No se pudo eliminar la compra");
       }
 
       onDeletePurchase(deletingId);
+      if (result.updatedProduct) onUpdateProduct(result.updatedProduct);
       setDeletingId(null);
       toast.success("Compra eliminada");
     } catch (error) {
@@ -281,14 +296,39 @@ export function PurchasesList({
                     />
                   </TableCell>
                   <TableCell>
-                    <Input
-                      value={newPurchase.description}
-                      onChange={(e) =>
-                        setNewPurchase({ ...newPurchase, description: e.target.value })
-                      }
-                      placeholder="Producto o servicio comprado"
-                      className="h-9 rounded-lg bg-card border-0 text-foreground"
-                    />
+                    {newPurchase.category === "Producto" ? (
+                      <Select
+                        value={newPurchase.productId ? String(newPurchase.productId) : ""}
+                        onValueChange={(value) => {
+                          const product = products.find((p) => p.id === Number(value));
+                          setNewPurchase({
+                            ...newPurchase,
+                            productId: Number(value),
+                            description: product?.name || "",
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="h-9 rounded-lg bg-card border-0 text-foreground">
+                          <SelectValue placeholder="Selecciona un producto" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-popover border-border">
+                          {products.map((product) => (
+                            <SelectItem key={product.id} value={String(product.id)}>
+                              {product.name} (Stock: {product.stock})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        value={newPurchase.description}
+                        onChange={(e) =>
+                          setNewPurchase({ ...newPurchase, description: e.target.value })
+                        }
+                        placeholder="Servicio contratado"
+                        className="h-9 rounded-lg bg-card border-0 text-foreground"
+                      />
+                    )}
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     <Select
@@ -298,6 +338,8 @@ export function PurchasesList({
                           ...newPurchase,
                           category: value,
                           quantity: value === "Servicio" ? 1 : newPurchase.quantity,
+                          productId: null,
+                          description: "",
                         })
                       }
                     >
@@ -400,13 +442,38 @@ export function PurchasesList({
                         />
                       </TableCell>
                       <TableCell>
-                        <Input
-                          value={editForm?.description || ""}
-                          onChange={(e) =>
-                            setEditForm({ ...editForm!, description: e.target.value })
-                          }
-                          className="h-9 rounded-lg bg-secondary/50 border-0 text-foreground"
-                        />
+                        {editForm?.category === "Producto" ? (
+                          <Select
+                            value={editForm?.productId ? String(editForm.productId) : ""}
+                            onValueChange={(value) => {
+                              const product = products.find((p) => p.id === Number(value));
+                              setEditForm({
+                                ...editForm!,
+                                productId: Number(value),
+                                description: product?.name || "",
+                              });
+                            }}
+                          >
+                            <SelectTrigger className="h-9 rounded-lg bg-secondary/50 border-0 text-foreground">
+                              <SelectValue placeholder="Selecciona un producto" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-popover border-border">
+                              {products.map((product) => (
+                                <SelectItem key={product.id} value={String(product.id)}>
+                                  {product.name} (Stock: {product.stock})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            value={editForm?.description || ""}
+                            onChange={(e) =>
+                              setEditForm({ ...editForm!, description: e.target.value })
+                            }
+                            className="h-9 rounded-lg bg-secondary/50 border-0 text-foreground"
+                          />
+                        )}
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
                         <Select
@@ -416,6 +483,8 @@ export function PurchasesList({
                               ...editForm!,
                               category: value,
                               quantity: value === "Servicio" ? 1 : editForm!.quantity,
+                              productId: null,
+                              description: "",
                             })
                           }
                         >

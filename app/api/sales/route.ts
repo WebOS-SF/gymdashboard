@@ -105,14 +105,17 @@ export async function POST(req: Request) {
         })
 
         // Create sale record
+        const saleAmount = product.price * quantity
+        const isPaid = body.isPendingPayment !== true
         const sale = await tx.salesRecord.create({
           data: {
             product: product.name,
-            amount: product.price * quantity,
+            amount: saleAmount,
             saleDate: new Date(),
             clientDni,
             paymentMethod: body.paymentMethod || "Efectivo",
-            isPaid: body.isPendingPayment !== true,
+            isPaid,
+            amountPaid: isPaid ? saleAmount : 0,
             soldById: persistedUserId,
           },
         })
