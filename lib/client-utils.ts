@@ -10,6 +10,7 @@ export const planTierLabels: Record<PlanTier, string> = {
   promo_cliente_medium_3meses: "Promo Cliente Medium (3 meses)",
   diario_trotadora: "Diario + Trotadora (3x/sem)",
   interdiario_trotadora: "Interdiario + Trotadora (3x/sem)",
+  diario_escolar_universitario: "Mensualidad Diaria Escolares/Universitarios",
 }
 
 export const planTierPrices: Record<PlanTier, Record<string, number>> = {
@@ -40,6 +41,9 @@ export const planTierPrices: Record<PlanTier, Record<string, number>> = {
   },
   interdiario_trotadora: {
     month: 100,
+  },
+  diario_escolar_universitario: {
+    day: 70,
   },
 }
 
@@ -75,6 +79,7 @@ export function normalizePlanTier(planTier: unknown): PlanTier {
   if (value === "promo_exclusiva_diario" || value.includes("promo_exclusiva") || value.includes("promocion exclusiva")) return "promo_exclusiva_diario"
   if (value === "cliente_antiguo_3meses" || value.includes("cliente_antiguo") || value.includes("cliente antiguo")) return "cliente_antiguo_3meses"
   if (value === "promo_cliente_medium_3meses" || value.includes("promo_cliente_medium") || value.includes("promo cliente medium")) return "promo_cliente_medium_3meses"
+  if (value === "diario_escolar_universitario" || value.includes("escolar") || value.includes("universitario")) return "diario_escolar_universitario"
   if ((value.includes("interdiario") || value.includes("inter")) && value.includes("trotadora")) return "interdiario_trotadora"
   if (value.includes("diario") && value.includes("trotadora")) return "diario_trotadora"
   if (value.includes("interdiario") || value.includes("inter")) return "interdiario"
@@ -281,6 +286,9 @@ export function calculatePlanPrice(input: {
   } else if (planTier === "por_dia") {
     pricingMode = "fixed_day"
     totalPrice = Math.max(1, sessionCount) * 8
+  } else if (planTier === "diario_escolar_universitario") {
+    pricingMode = "fixed_day_escolar_universitario"
+    totalPrice = Math.max(1, sessionCount) * 70
   } else if (durationUnit === "month" && prices.month) {
     pricingMode = "full_month"
     totalPrice = durationValue * prices.month

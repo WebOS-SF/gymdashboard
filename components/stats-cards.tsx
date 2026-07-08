@@ -21,9 +21,10 @@ interface StatsCardsProps {
   purchases: Purchase[]
   onUpdateClient: (client: Client) => void
   onUpdateSale: (sale: ProductSale) => void
+  isSuperadmin: boolean
 }
 
-export function StatsCards({ clients, products, analytics, sales, purchases, onUpdateClient, onUpdateSale }: StatsCardsProps) {
+export function StatsCards({ clients, products, analytics, sales, purchases, onUpdateClient, onUpdateSale, isSuperadmin }: StatsCardsProps) {
   // --- Selector de mes ---
   const now = new Date()
   const [selectedYear, setSelectedYear] = useState(now.getFullYear())
@@ -403,31 +404,21 @@ export function StatsCards({ clients, products, analytics, sales, purchases, onU
   const incomeChange = netMonthlyIncome - previousMonthIncome
   const incomeChangePercent = previousMonthIncome > 0 ? Math.round((incomeChange / previousMonthIncome) * 100) : 0
 
-  const stats = [
-    {
-      title: 'Clientes Activos',
-      value: activeClients.toString(),
-      subtitle: `+${newClientsThisMonth} este mes`,
-      icon: Users,
-      iconBg: 'bg-gradient-to-br from-[#FF6B6B] to-[#ee5a5a]',
-      trend: `${newClientsThisMonth > 0 ? '+' : ''}${Math.round((newClientsThisMonth / Math.max(activeClients - newClientsThisMonth, 1)) * 100)}%`,
-      trendUp: newClientsThisMonth > 0
-    },
-    {
-      title: 'Ingreso Mensual',
-      value: `S/ ${netMonthlyIncome.toLocaleString()}`,
-      subtitle: `Gastos: S/ ${filteredExpenses.toLocaleString()}`,
-      icon: DollarSign,
-      iconBg: 'bg-gradient-to-br from-[#5B8DEF] to-[#4a7de0]',
-      trend: `${incomeChangePercent > 0 ? '+' : ''}${incomeChangePercent}%`,
-      trendUp: incomeChangePercent > 0,
-      isClickable: true,
-      onClick: () => {
-        setIncomeCategoryFilter('Todos')
-        setIncomeSubFilter('Todos')
-        setIsIncomeModalOpen(true)
-      }
-    },
+  type StatItem = {
+    title: string
+    value: string
+    subtitle: string
+    icon: typeof Users
+    iconBg: string
+    trend: string
+    trendUp: boolean
+    isClickable?: boolean
+    onClick?: () => void
+    isDebtList?: boolean
+    debtList?: Array<{ name: string; amount: number }>
+  }
+
+  const debtStats: StatItem[] = [
     {
       title: 'Deudas de Membresías',
       value: monthlyPlanDebts.length.toString(),
@@ -456,10 +447,40 @@ export function StatsCards({ clients, products, analytics, sales, purchases, onU
     }
   ]
 
+  const stats: StatItem[] = isSuperadmin
+    ? [
+      {
+        title: 'Clientes Activos',
+        value: activeClients.toString(),
+        subtitle: `+${newClientsThisMonth} este mes`,
+        icon: Users,
+        iconBg: 'bg-gradient-to-br from-[#FF6B6B] to-[#ee5a5a]',
+        trend: `${newClientsThisMonth > 0 ? '+' : ''}${Math.round((newClientsThisMonth / Math.max(activeClients - newClientsThisMonth, 1)) * 100)}%`,
+        trendUp: newClientsThisMonth > 0
+      },
+      {
+        title: 'Ingreso Mensual',
+        value: `S/ ${netMonthlyIncome.toLocaleString()}`,
+        subtitle: `Gastos: S/ ${filteredExpenses.toLocaleString()}`,
+        icon: DollarSign,
+        iconBg: 'bg-gradient-to-br from-[#5B8DEF] to-[#4a7de0]',
+        trend: `${incomeChangePercent > 0 ? '+' : ''}${incomeChangePercent}%`,
+        trendUp: incomeChangePercent > 0,
+        isClickable: true,
+        onClick: () => {
+          setIncomeCategoryFilter('Todos')
+          setIncomeSubFilter('Todos')
+          setIsIncomeModalOpen(true)
+        }
+      },
+      ...debtStats
+    ]
+    : debtStats
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div className={isSuperadmin ? 'grid grid-cols-1 lg:grid-cols-3 gap-4' : 'space-y-4'}>
       {/* Stats Cards - Left Side */}
-      <div className="lg:col-span-2 space-y-4">
+      <div className={isSuperadmin ? 'lg:col-span-2 space-y-4' : 'space-y-4'}>
         {/* Month Selector */}
         <div className="flex items-center justify-between bg-card rounded-2xl border-0 shadow-sm p-4">
           <div className="flex items-center gap-2">
@@ -486,7 +507,7 @@ export function StatsCards({ clients, products, analytics, sales, purchases, onU
         </div>
 
         {/* Stats Cards Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className={`grid grid-cols-2 gap-4 ${isSuperadmin ? 'md:grid-cols-4' : 'md:grid-cols-2'}`}>
           {stats.map((stat) => (
             <Card 
               key={stat.title} 
@@ -525,6 +546,7 @@ export function StatsCards({ clients, products, analytics, sales, purchases, onU
       </div>
 
       {/* Balance Card - Right Side */}
+      {isSuperadmin && (
       <Card className="rounded-2xl border-0 shadow-lg bg-gradient-to-br from-primary via-primary/95 to-primary/85 overflow-hidden">
         <CardContent className="p-6 text-primary-foreground h-full flex flex-col justify-between">
           <div>
@@ -580,6 +602,7 @@ export function StatsCards({ clients, products, analytics, sales, purchases, onU
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Modal de Deudas de Productos */}
       <Dialog open={isProductDebtsModalOpen} onOpenChange={setIsProductDebtsModalOpen}>

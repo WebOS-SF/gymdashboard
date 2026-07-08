@@ -112,10 +112,10 @@ function buildInitialState(mode: PlanModalMode, client: Client | null, plan: Cli
   const todayLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   const initialPlanTier = client?.planTier || 'basic'
 
-  if (initialPlanTier === 'por_dia') {
+  if (initialPlanTier === 'por_dia' || initialPlanTier === 'diario_escolar_universitario') {
     return {
       clientDni: client?.dni || '',
-      planTier: 'por_dia',
+      planTier: initialPlanTier,
       joinDate: todayLocal,
       durationValue: 1,
       durationUnit: 'day',
@@ -156,7 +156,7 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
   }, [mode, client, plan, isOpen])
 
   useEffect(() => {
-    if (formData.planTier === 'por_dia' && formData.joinDate) {
+    if ((formData.planTier === 'por_dia' || formData.planTier === 'diario_escolar_universitario') && formData.joinDate) {
       const [year, month, day] = formData.joinDate.split('-').map(Number)
       if (year && month && day) {
         // Crear fecha localmente para obtener el día de la semana correcto
@@ -205,6 +205,7 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
     if (formData.planTier === 'cliente_antiguo_3meses') return formData.attendanceDays.length === 6
     if (formData.planTier === 'promo_cliente_medium_3meses') return formData.attendanceDays.length === 6
     if (formData.planTier === 'por_dia') return formData.attendanceDays.length === 1
+    if (formData.planTier === 'diario_escolar_universitario') return formData.attendanceDays.length === 1
     return formData.attendanceDays.length > 0
   }, [formData.planTier, formData.attendanceDays])
 
@@ -235,6 +236,9 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
     }
     if (formData.planTier === 'por_dia' && formData.attendanceDays.length !== 1) {
       return 'Pago por día: Selecciona exactamente 1 día'
+    }
+    if (formData.planTier === 'diario_escolar_universitario' && formData.attendanceDays.length !== 1) {
+      return 'Mensualidad Diaria Escolares/Universitarios: Selecciona exactamente 1 día'
     }
     if (formData.attendanceDays.length === 0) return 'Selecciona al menos un día de asistencia'
     return null
@@ -288,7 +292,7 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
         updates.durationUnit = 'month'
         updates.attendancePreset = 'daily'
         updates.attendanceDays = defaultAttendanceDays
-      } else if (planTier === 'por_dia') {
+      } else if (planTier === 'por_dia' || planTier === 'diario_escolar_universitario') {
         updates.durationValue = 1
         updates.durationUnit = 'day'
         updates.attendancePreset = 'daily'
@@ -300,7 +304,7 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
   }
 
   const handleAttendancePresetChange = (preset: AttendancePreset) => {
-    if (formData.planTier === 'por_dia') return
+    if (formData.planTier === 'por_dia' || formData.planTier === 'diario_escolar_universitario') return
 
     setFormData((current) => ({
       ...current,
@@ -319,7 +323,7 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
   const toggleDay = (day: Weekday, checked: boolean) => {
     setFormData((current) => {
       // En pago por día no permitimos cambiar los días manualmente (se rige por la fecha)
-      if (current.planTier === 'por_dia') {
+      if (current.planTier === 'por_dia' || current.planTier === 'diario_escolar_universitario') {
         return current
       }
 
@@ -509,7 +513,7 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
                       onChange={(e) => setFormData({ ...formData, durationValue: Number(e.target.value) || 1 })}
                       className="bg-input border-border text-foreground"
                       required
-                      disabled={formData.planTier === 'por_dia'}
+                      disabled={formData.planTier === 'por_dia' || formData.planTier === 'diario_escolar_universitario'}
                     />
                     <Select
                       value={formData.durationUnit}
@@ -534,14 +538,14 @@ export function PlanModal({ mode, clients, client, plan, canViewMoney, isOpen, i
 
               {!(formData.planTier === 'interdiario' || formData.planTier === 'interdiario_trotadora') && (
                 <Field>
-                  <FieldLabel>Días permitidos {formData.planTier === 'por_dia' && '(Sincronizado con fecha de inicio)'}</FieldLabel>
-                  <div className={`grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 rounded-xl border border-border/60 p-4 ${formData.planTier === 'por_dia' ? 'opacity-60 bg-secondary/10' : ''}`}>
+                  <FieldLabel>Días permitidos {(formData.planTier === 'por_dia' || formData.planTier === 'diario_escolar_universitario') && '(Sincronizado con fecha de inicio)'}</FieldLabel>
+                  <div className={`grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 rounded-xl border border-border/60 p-4 ${(formData.planTier === 'por_dia' || formData.planTier === 'diario_escolar_universitario') ? 'opacity-60 bg-secondary/10' : ''}`}>
                     {weekdayOrder.map((day) => (
                       <label key={day} className="flex items-center gap-2 text-sm text-foreground">
                         <Checkbox
                           checked={formData.attendanceDays.includes(day)}
                           onCheckedChange={(checked) => toggleDay(day, Boolean(checked))}
-                          disabled={formData.planTier === 'por_dia'}
+                          disabled={formData.planTier === 'por_dia' || formData.planTier === 'diario_escolar_universitario'}
                         />
                         {weekdayLabels[day]}
                       </label>

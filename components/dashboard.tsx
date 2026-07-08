@@ -141,22 +141,21 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
       <DashboardHeader user={user} onLogout={onLogout} />
 
       <main className="p-4 space-y-4">
-        {isSuperadmin && (
-          <>
-            {/* Stats Grid with Balance Card */}
-            <StatsCards
-              clients={clients}
-              products={products}
-              analytics={analytics}
-              sales={sales}
-              purchases={purchases}
-              onUpdateClient={handleUpdateClient}
-              onUpdateSale={handleUpdateSale}
-            />
+        {/* Stats Grid with Balance Card */}
+        <StatsCards
+          clients={clients}
+          products={products}
+          analytics={analytics}
+          sales={sales}
+          purchases={purchases}
+          onUpdateClient={handleUpdateClient}
+          onUpdateSale={handleUpdateSale}
+          isSuperadmin={isSuperadmin}
+        />
 
-            {/* Charts Section */}
-            <DashboardCharts data={monthlyData} purchases={purchases} />
-          </>
+        {isSuperadmin && (
+          /* Charts Section */
+          <DashboardCharts data={monthlyData} purchases={purchases} />
         )}
 
         {/* Toggle View */}
