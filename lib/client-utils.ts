@@ -286,6 +286,9 @@ export function calculatePlanPrice(input: {
   } else if (planTier === "por_dia") {
     pricingMode = "fixed_day"
     totalPrice = Math.max(1, sessionCount) * 8
+  } else if (planTier === "diario_escolar_universitario" && durationUnit === "month") {
+    pricingMode = "fixed_escolar_universitario"
+    totalPrice = durationValue * 70
   } else if (planTier === "diario_escolar_universitario") {
     pricingMode = "fixed_day_escolar_universitario"
     totalPrice = Math.max(1, sessionCount) * 70
