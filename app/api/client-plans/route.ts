@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       planTier: body.planTier,
       startDate,
       durationValue: Number(body.durationValue || 1),
-      durationUnit: body.durationUnit || "month",
+      durationUnit: body.planTier === "por_dia" ? "day" : body.durationUnit || "month",
       attendanceDays: body.attendanceDays,
       amountPaid: Number(body.amountPaid || 0),
       paymentMethod: body.paymentMethod,

@@ -41,7 +41,7 @@ export async function PUT(
       planTier: body.planTier || existingPlan.planTier,
       startDate,
       durationValue: Number(body.durationValue || existingPlan.durationValue || 1),
-      durationUnit: body.durationUnit || existingPlan.durationUnit || "month",
+      durationUnit: (body.planTier || existingPlan.planTier) === "por_dia" ? "day" : body.durationUnit || existingPlan.durationUnit || "month",
       attendanceDays: body.attendanceDays || existingPlan.attendanceDays,
       amountPaid: Number(typeof body.amountPaid !== "undefined" ? body.amountPaid : existingPlan.amountPaid),
       paymentMethod: body.paymentMethod || existingPlan.paymentMethod,

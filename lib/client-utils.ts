@@ -377,8 +377,11 @@ export function buildPlanPayload(input: {
   turn: unknown
 }) {
   const planTier = normalizePlanTier(input.planTier)
-  const durationValue = Math.max(1, Number(input.durationValue || 1))
-  const durationUnit = input.durationUnit
+  // Pago por día siempre debe durar exactamente 1 día: no confiar en lo que
+  // llegue del formulario/request, ya que un durationUnit incorrecto (ej: "month")
+  // deja al cliente "activo" un mes entero habiendo pagado un solo día.
+  const durationValue = planTier === "por_dia" ? 1 : Math.max(1, Number(input.durationValue || 1))
+  const durationUnit: DurationUnit = planTier === "por_dia" ? "day" : input.durationUnit
   const attendanceDays = normalizeWeekdays(input.attendanceDays)
   const startDate = startOfDay(input.startDate)
   const { endDate, pricingMode, sessionCount, totalPrice } = calculatePlanPrice({
